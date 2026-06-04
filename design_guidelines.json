@@ -1,0 +1,93 @@
+{
+  "theme": "Light",
+  "archetype": "Archetype 4: Swiss & High-Contrast with Editorial Vibe",
+  "colors": {
+    "background": "#F8F6F0",
+    "surface": "#FFFFFF",
+    "text_primary": "#1C1917",
+    "text_secondary": "#57534E",
+    "primary_accent": "#991B1B",
+    "secondary_accent": "#EAB308",
+    "border": "#E7E5E4",
+    "error": "#DC2626",
+    "success": "#16A34A"
+  },
+  "typography": {
+    "heading_font": "Cormorant Garamond",
+    "body_font": "Manrope",
+    "h1": "text-5xl sm:text-6xl tracking-tighter leading-none font-medium",
+    "h2": "text-3xl sm:text-4xl tracking-tight leading-tight",
+    "h3": "text-xl sm:text-2xl tracking-tight",
+    "body": "text-base leading-relaxed",
+    "label": "text-xs tracking-[0.2em] uppercase font-bold"
+  },
+  "layout_spacing": {
+    "marketing": "grid-cols-1 md:grid-cols-12 gap-8 p-6 md:p-12 lg:p-24",
+    "dashboard": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 p-4 md:p-8",
+    "cards": "p-6 md:p-8 border border-border bg-white"
+  },
+  "components": {
+    "buttons": "rounded-none px-6 py-3 font-semibold transition-transform hover:-translate-y-1 active:translate-y-0 text-white bg-primary_accent hover:bg-red-900",
+    "inputs": "rounded-none border-b-2 border-border focus:border-primary_accent bg-transparent outline-none px-0 py-2",
+    "cards": "rounded-none border border-black/10 bg-white shadow-none hover:shadow-lg transition-shadow duration-300",
+    "header": "sticky top-0 z-50 bg-[#F8F6F0]/80 backdrop-blur-xl border-b border-black/5"
+  },
+  "media": {
+    "hero_image": {
+      "url": "https://images.unsplash.com/photo-1512486130939-2c4f79935e4f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwzfHxtaW5pbWFsaXN0JTIwd29ya3NwYWNlJTIwbGFwdG9wJTIwY29mZmVlfGVufDB8fHx8MTc4MDU5Mzc4M3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Minimalist workspace"
+    },
+    "course_thumbnails": [
+      {
+        "url": "https://images.unsplash.com/photo-1577985043696-8bd54d9f093f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjB1bml2ZXJzaXR5JTIwY2FtcHVzJTIwc3R1ZGVudHMlMjBzdHVkeWluZ3xlbnwwfHx8fDE3ODA1OTM3ODN8MA&ixlib=rb-4.1.0&q=85",
+        "alt": "University campus students"
+      },
+      {
+        "url": "https://images.pexels.com/photos/5553065/pexels-photo-5553065.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "alt": "Students studying on laptop outdoors"
+      },
+      {
+        "url": "https://images.pexels.com/photos/5940844/pexels-photo-5940844.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "alt": "Diverse classmates sharing opinions"
+      }
+    ],
+    "testimonials": [
+      {
+        "url": "https://images.unsplash.com/photo-1662850886700-4ec19bd30d11?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwxfHxwb3J0cmFpdCUyMHN0dWRlbnQlMjBkaXZlcnNlJTIwc21pbGluZ3xlbnwwfHx8fDE3ODA1OTM3ODN8MA&ixlib=rb-4.1.0&q=85",
+        "alt": "Smiling student portrait"
+      },
+      {
+        "url": "https://images.pexels.com/photos/8199172/pexels-photo-8199172.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "alt": "Diverse university student smiling"
+      }
+    ],
+    "brand_logo_instruction": "Use purely typography (Cormorant Garamond, tracking-tight, text-2xl) and a Lucide GraduationCap icon. No image logo."
+  },
+  "motion_and_interactions": {
+    "hover_states": "Elements must lift slightly (-translate-y-1) and gain a drop-shadow. Text links change to primary_accent.",
+    "page_transitions": "Fade in content sequentially. Course cards stagger in on load.",
+    "accessibility": "Respect prefers-reduced-motion. Ensure focus states have ring-2 ring-primary_accent."
+  },
+  "specific_page_guidelines": {
+    "marketing_landing": "Use asymmetrical Tetris grid (grid-cols-12). Huge editorial typography. Hero image has max bg-black/20 overlay for contrast. Add subtle noise texture.",
+    "student_dashboard": "Control Room grid. High density. Sidebar navigation. Use pure HTML/Tailwind for layout structure but Shadcn components for complex interactions like Tabs or Dropdowns.",
+    "course_viewer": "Video player takes precedence (col-span-8), sidebar with lesson list (col-span-4). No distractions. Pure functional focus.",
+    "admin_panel": "Dense data tables (Shadcn Table). Minimal padding (p-4) to fit more data. Strictly monotone with status badges (Yellow, Green, Red)."
+  },
+  "testing": {
+    "data_testid_rules": "All interactive elements MUST have data-testid attributes (e.g., login-button, enroll-course-id, play-video-button)."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "clean, unstyled, stroke-width 1.5 for elegance"
+  },
+  "instructions_to_main_agent": [
+    "Use React with JS (not TSX).",
+    "Install `lucide-react` for icons.",
+    "Use Shadcn components heavily customized to be flat, brutalist (rounded-none, border-black/10).",
+    "Never use generic placeholder images, use the provided Unsplash/Pexels URLs.",
+    "Apply generous spacing on marketing pages (py-24, gap-12), and dense spacing on dashboards (p-6, gap-4).",
+    "Ensure all interactive UI has a defined hover and focus state with clear color changes.",
+    "Include data-testid on every button, link, and form input."
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "summary": "Re-verified the two HIGH frontend fixes and ran the full deferred student + admin end-to-end flows, contact flow and catalog filters. All flows pass. Backend regression (26/26) still green after the model `_id`->`id` change. The id field is now returned (not _id) on /api/courses, /api/courses/slug/foundations-of-modern-design (note: slug `learning-core-3` returns 404 because that slug is not seeded; foundations-of-modern-design is the free course used in the flows), /api/lessons/by-course/{id}, /api/admin/users and /api/testimonials. Curriculum on foundations-of-modern-design renders 4 curriculum-item-<lessonId> items. Student e2e (register → enroll → 4 lessons mark-complete → certificate PDF download with content-type application/pdf) works. Admin e2e (login → /admin → overview → courses tab → create 'QA Test Course' → add 'QA Lesson 1' → users/payments/contacts/testimonials tabs render) works; 6 approved testimonials returned by the API (template said 3 — see context). Contact form posts and message is visible in admin > contacts. Catalog search + category + level filters all behave correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin Overview tab", "issues": ["The label for the Revenue / Enrollments cards uses a single-letter visual layout (e.g., the screenshot shows just 'I', 'O', 'I' on the dashboard cards). This appears to be intentional minimalist typography but worth a visual review for accessibility/readability."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Minor: The original spec referenced slug `learning-core-3` which is the preview URL host name, not a real course slug. The seeded free course slug is `foundations-of-modern-design` — recommend updating the prompt/spec.",
+    "Minor: The request mentioned 3 approved testimonials but the seed includes 3 base + several TEST_ approved ones from previous test runs — consider cleanup of TEST_ testimonials/contacts seed pollution.",
+    "Optional: For better testability, add data-testid attributes ending in `-input` consistently (current contact form uses `contact-name`, not `contact-name-input`)."
+  ],
+  "critical_code_review_comments": [
+    "models/base.py serialization now correctly returns `id` instead of `_id`; verified across multiple endpoints.",
+    "Mobile logout testid (`mobile-logout-btn`) present in Header.jsx as required.",
+    "Document title set to 'Atlas Academy — A studio for serious craft' in public/index.html as required.",
+    "Routers still read d['_id'] internally which is correct since Mongo stores docs with _id; only the response model exposes `id`."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (26/26)", "frontend": "100% (all requested flows)"},
+  "test_credentials": "Admin admin@atlasacademy.io / admin123, Student student@atlasacademy.io / student123 — both work; new student registrations via /api/auth/register also work.",
+  "seed_data_creation": "Test student `learner+<ts>@test.io`, QA Test Course + QA Lesson 1, QA Contact message — none cleaned up, may need teardown if seed pollution is a concern.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All HIGH fixes verified. Backend 26/26 still passing. Free course slug is `foundations-of-modern-design` (slug `learning-core-3` does NOT exist — it's just the preview hostname). Contact form testids are `contact-name`, `contact-email`, `contact-subject`, `contact-message`, `contact-submit` (no `-input` suffix). Catalog filter testids `filter-cat-<Category>` and `filter-level-<level>` work, also `courses-search-input` and `course-card-<slug>`. Admin tab testids: `admin-tab-overview/courses/users/payments/contacts/testimonials`, `admin-new-course`, `admin-add-lesson-<courseId>`. Course create dialog inputs (in order): Title, Short description, [textarea: Description], Category, [select: Level], Price, Thumbnail URL, [textarea: Tags]. Lesson dialog Save button label = 'Save lesson'. Certificate download endpoint returns application/pdf correctly.",
+  "rca of the issue": "N/A — no bugs found in this iteration."
+}

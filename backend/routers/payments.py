@@ -1,4 +1,4 @@
-"""Payments router using Paystack."""
+# Payments router using Paystack.
 import os
 import uuid
 import logging

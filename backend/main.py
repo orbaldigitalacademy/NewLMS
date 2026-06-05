@@ -281,6 +281,15 @@ api_router.include_router(admin_router.router)
 
 app.include_router(api_router)
 
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
+logger.info(f"CORS_ORIGINS raw: {os.environ.get('CORS_ORIGINS')}")
+logger.info(f"CORS_ORIGINS parsed: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

@@ -288,8 +288,7 @@ app.add_middleware(
     allow_origins=[
     origin.strip()
     for origin in os.environ.get("CORS_ORIGINS", "").split(",")
-    if origin.strip()
-]
+    if origin.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )

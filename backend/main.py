@@ -255,6 +255,12 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="LMS API", lifespan=lifespan)
 
+@app.middleware("http")
+async def log_origin(request, call_next):
+    print("ORIGIN:", request.headers.get("origin"))
+    response = await call_next(request)
+    return response
+
 api_router = APIRouter(prefix="/api")
 
 
@@ -281,19 +287,16 @@ api_router.include_router(admin_router.router)
 
 app.include_router(api_router)
 
-cors_origins = [
+origins = [
     origin.strip()
     for origin in os.environ.get("CORS_ORIGINS", "").split(",")
     if origin.strip()
 ]
 
-logger.info(f"CORS_ORIGINS raw: {os.environ.get('CORS_ORIGINS')}")
-logger.info(f"CORS_ORIGINS parsed: {cors_origins}")
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

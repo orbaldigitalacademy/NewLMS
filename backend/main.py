@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI
 from pathlib import Path
 from starlette.middleware.cors import CORSMiddleware
+from routers import settings
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -285,6 +286,7 @@ api_router.include_router(uploads_router.router)
 api_router.include_router(contacts_router.router)
 api_router.include_router(admin_router.router)
 
+app.include_router(settings.router, prefix="/api")
 app.include_router(api_router)
 
 origins = [

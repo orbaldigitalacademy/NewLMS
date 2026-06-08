@@ -225,3 +225,14 @@ async def delete_testimonial(
     )
 
     return None
+
+@app.get("/api/admin/testimonials")
+async def admin_testimonials():
+    testimonials = list(
+        db.testimonials.find({})
+    )
+
+    for t in testimonials:
+        t["_id"] = str(t["_id"])
+
+    return testimonials

@@ -213,7 +213,7 @@ async def seed_data():
             {
                 "name": "Chioma Okeke",
                 "role": "Designer, Lagos",
-                "quote": "The Foundations course rewired how I look at every poster, app, and book cover. The critique sessions alone were worth it.",
+                "content": "The Foundations course rewired how I look at every poster, app, and book cover. The critique sessions alone were worth it.",
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": True,

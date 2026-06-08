@@ -7,10 +7,24 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from auth import require_admin
 from database import db
-from models.settings import SettingsResponse, SettingsUpdate
 from models.user import User
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+
+
+class SettingsResponse(BaseModel):
+    bank_name: str = ""
+    account_number: str = ""
+    account_name: str = ""
+    admin_email: str = ""
+
+
+class SettingsUpdate(BaseModel):
+    bank_name: str | None = None
+    account_number: str | None = None
+    account_name: str | None = None
+    admin_email: str | None = None
 
 
 @router.get("/bank", response_model=SettingsResponse)

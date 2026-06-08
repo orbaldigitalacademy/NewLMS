@@ -110,16 +110,15 @@ async def create_testimonial(
     Students submit testimonials.
     Admin approval required before publication.
     """
-
     testimonial = Testimonial(
-        user_id=user.id,
-        user_name=user.name,
-        content=data.content,
-        video_url=data.video_url,
-        rating=data.rating,
-        is_approved=False,
-        is_featured=False,
-    )
+    user_id=user.id,
+    user_name=user.name,
+    avatar_url=data.avatar_url or user.avatar_url,
+    content=data.content,
+    video_url=data.video_url,
+    rating=data.rating,
+    is_approved=False,
+)
 
     await db.testimonials.insert_one(
         testimonial.to_mongo()

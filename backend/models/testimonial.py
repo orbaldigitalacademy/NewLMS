@@ -9,6 +9,7 @@ from .base import BaseDocument
 class Testimonial(BaseDocument):
     user_id: Optional[str] = None
     user_name: str
+    avatar_url: Optional[str] = None
     content: str
     video_url: Optional[str] = None
 
@@ -25,6 +26,7 @@ class Testimonial(BaseDocument):
 class TestimonialCreate(BaseModel):
     content: str
     video_url: Optional[str] = None
+    avatar_url: Optional[str] = None
 
     rating: int = Field(
         default=5,

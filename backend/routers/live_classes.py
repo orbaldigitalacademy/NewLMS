@@ -62,21 +62,20 @@ async def create_live_class(
     require_instructor_or_admin(current_user)
 
     live_class = {
-        "id": str(uuid.uuid4()),
-        "title": payload.get("title"),
-        "description": payload.get("description", ""),
-        "course_id": payload.get("course_id"),
-        "meeting_url": payload.get("meeting_url"),
-        "room_name": payload.get("room_name"),
-        "start_time": payload.get("start_time"),
-        "end_time": payload.get("end_time"),
-        "recording_url": "",
-        "recording_available": False,
-        "created_by": current_user["id"],
-        "created_at": datetime.now(
-            timezone.utc
-        ).isoformat(),
+    "id": str(uuid.uuid4()),
+    "title": payload.get("title"),
+    "description": payload.get("description", ""),
+    "course_id": payload.get("course_id"),
+    "meeting_url": payload.get("meeting_url"),
+    "room_name": payload.get("room_name"),
+    "start_time": payload.get("start_time"),
+    "end_time": payload.get("end_time"),
+    "recording_url": "",
+    "recording_available": False,
+    "created_by": current_user.id,
+    "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    
 
     live_class["status"] = get_live_class_status(
         live_class["start_time"],

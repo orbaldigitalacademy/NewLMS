@@ -81,3 +81,12 @@ async def update_user_role(
 async def list_payments(_: User = Depends(require_admin)):
     docs = await db.payments.find().sort("created_at", -1).to_list(1000)
     return [Payment.from_mongo(d) for d in docs]
+
+@router.get("/testimonials")
+async def get_admin_testimonials():
+    docs = await db.testimonials.find({}).to_list(1000)
+
+    return [
+        Testimonial.from_mongo(doc)
+        for doc in docs
+    ]

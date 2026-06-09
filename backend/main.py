@@ -213,37 +213,45 @@ async def seed_data():
     if await db.testimonials.count_documents({}) == 0:
         testimonials = [
             {
-                "name": "Chioma Okeke",
-                "role": "Designer, Lagos",
-                "content": "The Foundations course rewired how I look at every poster, app, and book cover. The critique sessions alone were worth it.",
+                "user_name": "Chioma Okeke",
+                "content": (
+                    "The Foundations course rewired how I look at every poster, "
+                    "app, and book cover. The critique sessions alone were worth it."
+                ),
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": True,
                 "avatar_url": "https://images.unsplash.com/photo-1662850886700-4ec19bd30d11?crop=entropy&cs=srgb&fm=jpg&w=400&q=80",
             },
             {
-                "name": "Marcus Adeyemi",
-                "role": "Software Engineer",
-                "quote": "I shipped my first production API in week three. Atlas Academy doesn't just teach—it makes you build.",
+                "user_name": "Marcus Adeyemi",
+                "content": (
+                    "I shipped my first production API in week three. "
+                    "Atlas Academy doesn't just teach—it makes you build."
+                ),
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": True,
                 "avatar_url": "https://images.pexels.com/photos/8199172/pexels-photo-8199172.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=400&w=400",
             },
             {
-                "name": "Zara Bello",
-                "role": "Product Manager",
-                "quote": "The product strategy lessons gave me a vocabulary for conversations I used to dread. My team has noticed.",
+                "user_name": "Zara Bello",
+                "content": (
+                    "The product strategy lessons gave me a vocabulary for "
+                    "conversations I used to dread. My team has noticed."
+                ),
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": True,
             },
         ]
+    
         for t in testimonials:
             tdoc = Testimonial(**t)
             await db.testimonials.insert_one(tdoc.to_mongo())
+    
         logger.info("Seeded testimonials")
-
+        
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):

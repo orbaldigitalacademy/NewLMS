@@ -226,7 +226,7 @@ async def delete_testimonial(
 
     return None
 
-@app.get("/api/admin/testimonials")
+@router.get("/api/admin/testimonials")
 async def admin_testimonials():
     testimonials = list(
         db.testimonials.find({})

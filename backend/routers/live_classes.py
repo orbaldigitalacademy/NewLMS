@@ -10,7 +10,7 @@ from fastapi import (
 
 from auth import get_current_user
 from database import db
-from models.live_class import LiveClassStatus
+from models.live_classes import LiveClassStatus
 
 router = APIRouter(
     prefix="/live-classes",

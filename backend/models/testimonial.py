@@ -23,6 +23,7 @@ class Testimonial(BaseDocument):
     is_featured: bool = False
 
 
+
 class TestimonialCreate(BaseModel):
     content: str
     video_url: Optional[str] = None
@@ -37,3 +38,4 @@ class TestimonialCreate(BaseModel):
 class TestimonialUpdate(BaseModel):
     is_approved: Optional[bool] = None
     is_featured: Optional[bool] = None
+

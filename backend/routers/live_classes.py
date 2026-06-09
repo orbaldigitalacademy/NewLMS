@@ -42,17 +42,14 @@ def get_live_class_status(
 
     return LiveClassStatus.SCHEDULED
 
-
 def require_instructor_or_admin(user):
-    role = user.get("role")
+    role = user.role
 
     if role not in ["admin", "instructor"]:
         raise HTTPException(
             status_code=403,
             detail="Permission denied"
         )
-
-
 # ==================================================
 # CREATE LIVE CLASS
 # ==================================================

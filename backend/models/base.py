@@ -29,12 +29,13 @@ class BaseDocument(BaseModel):
         return d
 
     @classmethod
-    def from_mongo(cls, doc: dict | None):
-        if doc is None:
+    def from_mongo(cls, data: dict):
+        if not data:
             return None
-        data = dict(doc)
-        if "_id" in data and "id" not in data:
-            data["id"] = data.pop("_id")
-        else:
-            data.pop("_id", None)
+    
+        data = dict(data)
+    
+        data["id"] = str(data.get("_id"))
+        data.pop("_id", None)
+    
         return cls(**data)

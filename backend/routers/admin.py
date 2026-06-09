@@ -7,6 +7,7 @@ from auth import require_admin
 from database import db
 from models.payment import Payment
 from models.user import User, UserPublic
+from models.testimonial import Testimonial
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 

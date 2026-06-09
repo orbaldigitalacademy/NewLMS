@@ -118,6 +118,7 @@ async def create_testimonial(
     video_url=data.video_url,
     rating=data.rating,
     is_approved=False,
+    created_at= datetime.utcnow()
 )
 
     await db.testimonials.insert_one(

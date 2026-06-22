@@ -1,18 +1,26 @@
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    UploadFile,
+    HTTPException,
+    status,
+)
 import cloudinary
 import cloudinary.uploader
 import logging
+import uuid
 
 from auth import get_current_user, require_roles
 from models import UserRole
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+api_router = APIRouter()
 
-# ==============================
-# FILE TYPES
-# ==============================
+# =====================================================
+# ALLOWED FILE TYPES
+# =====================================================
 
 IMAGE_TYPES = {
     "image/jpeg",
@@ -34,20 +42,87 @@ DOCUMENT_TYPES = {
     "image/png",
 }
 
+# =====================================================
+# FILE SIZE LIMITS
+# =====================================================
+
+MAX_IMAGE_SIZE = 5 * 1024 * 1024       # 5 MB
+MAX_VIDEO_SIZE = 100 * 1024 * 1024     # 100 MB
+MAX_DOCUMENT_SIZE = 10 * 1024 * 1024   # 10 MB
+
+# =====================================================
+# HELPERS
+# =====================================================
 
 def ensure_cloudinary():
-    if not cloudinary.config().cloud_name:
+    """
+    Ensure Cloudinary is configured.
+    """
+    config = cloudinary.config()
+
+    if not config.cloud_name:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Cloudinary not configured",
+            detail="Cloudinary is not configured",
         )
 
 
-# ==============================
-# IMAGE UPLOAD
-# ==============================
+async def read_and_validate_file(
+    file: UploadFile,
+    max_size: int,
+):
+    """
+    Read file contents and validate size.
+    """
+    contents = await file.read()
+    await file.close()
 
-@router.post("/upload/image")
+    if not contents:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Empty file uploaded",
+        )
+
+    if len(contents) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File exceeds {max_size // (1024 * 1024)} MB limit",
+        )
+
+    return contents
+
+
+async def upload_to_cloudinary(
+    file: UploadFile,
+    resource_type: str,
+    folder: str,
+    max_size: int,
+):
+    """
+    Upload file to Cloudinary.
+    """
+    contents = await read_and_validate_file(file, max_size)
+
+    result = cloudinary.uploader.upload(
+        contents,
+        resource_type=resource_type,
+        folder=folder,
+        public_id=f"{uuid.uuid4()}",
+        overwrite=False,
+    )
+
+    return {
+        "success": True,
+        "url": result.get("secure_url"),
+        "public_id": result.get("public_id"),
+    }
+
+
+# =====================================================
+# IMAGE UPLOAD
+# =====================================================
+
+@api_router.post("/upload/image")
 async def upload_image(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
@@ -57,26 +132,22 @@ async def upload_image(
     if file.content_type not in IMAGE_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported image format",
+            detail="Unsupported image format. Allowed: JPG, PNG, GIF, WEBP",
         )
 
     try:
-        contents = await file.read()
-
-        result = cloudinary.uploader.upload(
-            contents,
+        return await upload_to_cloudinary(
+            file=file,
             resource_type="image",
             folder="lms/images",
+            max_size=MAX_IMAGE_SIZE,
         )
 
-        return {
-            "success": True,
-            "url": result["secure_url"],
-            "public_id": result["public_id"],
-        }
+    except HTTPException:
+        raise
 
-    except Exception as e:
-        logger.exception(f"Image upload failed: {e}")
+    except Exception:
+        logger.exception("Image upload failed")
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -84,14 +155,14 @@ async def upload_image(
         )
 
 
-# ==============================
+# =====================================================
 # VIDEO UPLOAD
-# ==============================
+# =====================================================
 
-@router.post("/upload/video")
+@api_router.post("/upload/video")
 async def upload_video(
     file: UploadFile = File(...),
-    user: dict = Depends(
+    current_user: dict = Depends(
         require_roles(
             UserRole.ADMIN,
             UserRole.INSTRUCTOR,
@@ -107,22 +178,18 @@ async def upload_video(
         )
 
     try:
-        contents = await file.read()
-
-        result = cloudinary.uploader.upload(
-            contents,
+        return await upload_to_cloudinary(
+            file=file,
             resource_type="video",
             folder="lms/videos",
+            max_size=MAX_VIDEO_SIZE,
         )
 
-        return {
-            "success": True,
-            "url": result["secure_url"],
-            "public_id": result["public_id"],
-        }
+    except HTTPException:
+        raise
 
-    except Exception as e:
-        logger.exception(f"Video upload failed: {e}")
+    except Exception:
+        logger.exception("Video upload failed")
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -130,11 +197,11 @@ async def upload_video(
         )
 
 
-# ==============================
+# =====================================================
 # DOCUMENT UPLOAD
-# ==============================
+# =====================================================
 
-@router.post("/upload/document")
+@api_router.post("/upload/document")
 async def upload_document(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
@@ -148,28 +215,24 @@ async def upload_document(
         )
 
     try:
-        contents = await file.read()
-
         resource_type = (
             "image"
             if file.content_type.startswith("image/")
             else "raw"
         )
 
-        result = cloudinary.uploader.upload(
-            contents,
+        return await upload_to_cloudinary(
+            file=file,
             resource_type=resource_type,
             folder="lms/proofs",
+            max_size=MAX_DOCUMENT_SIZE,
         )
 
-        return {
-            "success": True,
-            "url": result["secure_url"],
-            "public_id": result["public_id"],
-        }
+    except HTTPException:
+        raise
 
-    except Exception as e:
-        logger.exception(f"Document upload failed: {e}")
+    except Exception:
+        logger.exception("Document upload failed")
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

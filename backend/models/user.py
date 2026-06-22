@@ -1,16 +1,19 @@
-from typing import Optional, Literal
+from enum import Enum
 from pydantic import BaseModel, EmailStr, Field
 from .base import BaseDocument
 
 
-RoleType = Literal["student", "admin"]
+class UserRole(str, Enum):
+    STUDENT = "student"
+    INSTRUCTOR = "instructor"
+    ADMIN = "admin"
 
 
 class User(BaseDocument):
     email: EmailStr
     name: str
     password_hash: str
-    role: RoleType = "student"
+    role: UserRole = UserRole.STUDENT
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
 
@@ -19,7 +22,7 @@ class UserPublic(BaseModel):
     id: str
     email: EmailStr
     name: str
-    role: RoleType
+    role: UserRole
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
     created_at: Optional[str] = None

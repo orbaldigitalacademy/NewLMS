@@ -284,6 +284,19 @@ async def root():
 async def health():
     return {"status": "ok"}
 
+origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount sub-routers
 api_router.include_router(auth_router.router)
@@ -301,16 +314,4 @@ app.include_router(settings.router, prefix="/api")
 app.include_router(api_router)
 app.include_router(testimonials.router)
 
-origins = [
-    origin.strip()
-    for origin in os.environ.get("CORS_ORIGINS", "").split(",")
-    if origin.strip()
-]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)

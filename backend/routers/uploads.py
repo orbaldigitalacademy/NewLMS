@@ -122,7 +122,7 @@ async def upload_to_cloudinary(
 # IMAGE UPLOAD
 # =====================================================
 
-@api_router.post("/upload/image")
+@router.post("/upload/image")
 async def upload_image(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
@@ -159,7 +159,7 @@ async def upload_image(
 # VIDEO UPLOAD
 # =====================================================
 
-@api_router.post("/upload/video")
+@router.post("/upload/video")
 async def upload_video(
     file: UploadFile = File(...),
     current_user: dict = Depends(
@@ -201,7 +201,7 @@ async def upload_video(
 # DOCUMENT UPLOAD
 # =====================================================
 
-@api_router.post("/upload/document")
+@router.post("/upload/document")
 async def upload_document(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),

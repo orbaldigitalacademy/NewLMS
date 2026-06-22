@@ -34,6 +34,21 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
     return user
 
+def require_roles(*allowed_roles):
+
+    async def role_checker(
+        user: User = Depends(get_current_user),
+    ):
+
+        if user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to perform this action",
+            )
+
+        return user
+
+    return role_checker
 
 async def get_optional_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),

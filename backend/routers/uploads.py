@@ -16,7 +16,7 @@ from models import UserRole
 
 logger = logging.getLogger(__name__)
 
-api_router = APIRouter()
+router = APIRouter()
 
 # =====================================================
 # ALLOWED FILE TYPES

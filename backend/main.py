@@ -10,6 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 from routers import settings
 from routers import testimonials
 from routers import live_classes as live_classes_router
+from routers import uploads as uploads_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -313,5 +314,6 @@ api_router.include_router(live_classes_router.router)
 app.include_router(settings.router, prefix="/api")
 app.include_router(api_router)
 app.include_router(testimonials.router)
+app.include_router(uploads_router.router,prefix="/api",)
 
 

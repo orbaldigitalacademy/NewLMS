@@ -1,4 +1,3 @@
-```python
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status
 import cloudinary
 import cloudinary.uploader

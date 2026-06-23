@@ -1,6 +1,7 @@
 """Auth helpers - extract current user from JWT."""
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from typing import Optional
 
 from database import db
 from models.user import User

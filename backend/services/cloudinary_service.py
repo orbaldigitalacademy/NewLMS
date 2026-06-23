@@ -52,17 +52,24 @@ def upload_file(
             "resource_type": resource_type,
         }
 
-    result = cloudinary.uploader.upload(
-        file_bytes,
-        resource_type=resource_type,
-        folder=folder,
-        public_id=None,
-        use_filename=True,
-        unique_filename=True,
-        overwrite=False,
-    )
-    return {
-        "url": result.get("secure_url"),
-        "public_id": result.get("public_id"),
-        "resource_type": result.get("resource_type"),
-    }
+    try:
+        result = cloudinary.uploader.upload(
+            file_bytes,
+            resource_type=resource_type,
+            folder=folder,
+            public_id=None,
+            use_filename=True,
+            unique_filename=True,
+            overwrite=False,
+        )
+
+        return {
+            "url": result.get("secure_url"),
+            "public_id": result.get("public_id"),
+            "resource_type": result.get("resource_type"),
+        }
+
+    except Exception:
+        logger.exception("Cloudinary upload failed for %s", filename)
+        raise
+

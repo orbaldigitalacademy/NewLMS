@@ -6,8 +6,7 @@ from fastapi import (
     HTTPException,
     status,
 )
-import cloudinary
-import cloudinary.uploader
+from services.cloudinary_service import upload_file
 import logging
 import uuid
 
@@ -54,19 +53,6 @@ MAX_DOCUMENT_SIZE = 10 * 1024 * 1024   # 10 MB
 # HELPERS
 # =====================================================
 
-def ensure_cloudinary():
-    """
-    Ensure Cloudinary is configured.
-    """
-    config = cloudinary.config()
-
-    if not config.cloud_name:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Cloudinary is not configured",
-        )
-
-
 async def read_and_validate_file(
     file: UploadFile,
     max_size: int,
@@ -91,52 +77,37 @@ async def read_and_validate_file(
 
     return contents
 
-
-async def upload_to_cloudinary(
+async def upload_file_helper(
     file: UploadFile,
     resource_type: str,
     folder: str,
     max_size: int,
 ):
-    """
-    Upload file to Cloudinary.
-    """
     contents = await read_and_validate_file(file, max_size)
 
-    result = cloudinary.uploader.upload(
-        contents,
+    return upload_file(
+        file_bytes=contents,
+        filename=file.filename,
         resource_type=resource_type,
         folder=folder,
-        public_id=f"{uuid.uuid4()}",
-        overwrite=False,
     )
-
-    return {
-        "success": True,
-        "url": result.get("secure_url"),
-        "public_id": result.get("public_id"),
-    }
-
 
 # =====================================================
 # IMAGE UPLOAD
 # =====================================================
-
 @router.post("/upload/image")
 async def upload_image(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
-    ensure_cloudinary()
-
     if file.content_type not in IMAGE_TYPES:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=400,
             detail="Unsupported image format. Allowed: JPG, PNG, GIF, WEBP",
         )
 
     try:
-        return await upload_to_cloudinary(
+        return await upload_file_helper(
             file=file,
             resource_type="image",
             folder="lms/images",
@@ -150,10 +121,9 @@ async def upload_image(
         logger.exception("Image upload failed")
 
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail="Failed to upload image",
         )
-
 
 # =====================================================
 # VIDEO UPLOAD
@@ -169,7 +139,6 @@ async def upload_video(
         )
     ),
 ):
-    ensure_cloudinary()
 
     if file.content_type not in VIDEO_TYPES:
         raise HTTPException(
@@ -178,7 +147,7 @@ async def upload_video(
         )
 
     try:
-        return await upload_to_cloudinary(
+        return await upload_file_helper(
             file=file,
             resource_type="video",
             folder="lms/videos",
@@ -206,7 +175,6 @@ async def upload_document(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
-    ensure_cloudinary()
 
     if file.content_type not in DOCUMENT_TYPES:
         raise HTTPException(
@@ -221,7 +189,7 @@ async def upload_document(
             else "raw"
         )
 
-        return await upload_to_cloudinary(
+        return await upload_file_helper(
             file=file,
             resource_type=resource_type,
             folder="lms/proofs",

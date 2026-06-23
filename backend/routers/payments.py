@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from auth import get_current_user
 from database import db
 from models.course import Course
-from models.payment import Payment, PaymentInitRequest, PaymentInitResponse
+from models.payment import Payment, PaymentInitRequest, PaymentInitResponse, PaymentSubmitRequest,
+    PaymentReviewRequest,
 from models.user import User
 from services.payment_service import (
     initialize_transaction,
@@ -83,6 +84,32 @@ async def initialize_payment(
         access_code=paystack_data.get("access_code"),
     )
 
+@router.post("/submit")
+async def submit_bank_payment(
+    course_id: str,
+    payment_proof_url: str,
+    current_user: User = Depends(get_current_user),
+):
+    course = await db.courses.find_one({"_id": course_id})
+
+    if not course:
+        raise HTTPException(404, "Course not found")
+
+    payment = Payment(
+        user_id=current_user.id,
+        course_id=course_id,
+        amount=course["price"],
+        payment_method="bank_transfer",
+        payment_proof=payment_proof_url,
+        status="pending",
+    )
+
+    await db.payments.insert_one(payment.to_mongo())
+
+    return {
+        "success": True,
+        "message": "Payment submitted for verification."
+    }
 
 async def _finalize_payment(reference: str) -> dict:
     """Verify with Paystack and create enrollment if success."""
@@ -139,29 +166,4 @@ async def paystack_webhook(request: Request):
         reference = event["data"]["reference"]
         await _finalize_payment(reference)
     return {"status": "ok"}
-@router.post("/submit")
-async def submit_bank_payment(
-    course_id: str,
-    payment_proof_url: str,
-    current_user: User = Depends(get_current_user),
-):
-    course = await db.courses.find_one({"_id": course_id})
 
-    if not course:
-        raise HTTPException(404, "Course not found")
-
-    payment = Payment(
-        user_id=current_user.id,
-        course_id=course_id,
-        amount=course["price"],
-        payment_method="bank_transfer",
-        payment_proof=payment_proof_url,
-        status="pending",
-    )
-
-    await db.payments.insert_one(payment.to_mongo())
-
-    return {
-        "success": True,
-        "message": "Payment submitted for verification."
-    }

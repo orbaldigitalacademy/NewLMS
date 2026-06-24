@@ -7,8 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from auth import get_current_user
 from database import db
 from models.course import Course
-from models.payment import Payment, PaymentInitRequest, PaymentInitResponse, PaymentSubmitRequest,
-    PaymentReviewRequest,
+from models.payment import Payment, PaymentInitRequest, PaymentInitResponse, PaymentSubmitRequest, PaymentReviewRequest
 from models.user import User
 from services.payment_service import (
     initialize_transaction,

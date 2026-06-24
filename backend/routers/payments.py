@@ -86,29 +86,74 @@ async def initialize_payment(
 
 @router.post("/submit")
 async def submit_bank_payment(
-    course_id: str,
-    payment_proof_url: str,
-    current_user: User = Depends(get_current_user),
+    data: PaymentSubmitRequest,
+    user: User = Depends(get_current_user),
 ):
-    course = await db.courses.find_one({"_id": course_id})
+    """
+    Submit a bank transfer payment for manual review.
+    """
 
-    if not course:
-        raise HTTPException(404, "Course not found")
+    # Check that the course exists
+    course_doc = await db.courses.find_one({"_id": data.course_id})
+
+    if not course_doc:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "Course not found",
+        )
+
+    course = Course.from_mongo(course_doc)
+
+    # Prevent duplicate enrolment
+    existing_enrollment = await db.enrollments.find_one(
+        {
+            "user_id": user.id,
+            "course_id": course.id,
+        }
+    )
+
+    if existing_enrollment:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Already enrolled in this course",
+        )
+
+    # Prevent duplicate pending payment
+    existing_payment = await db.payments.find_one(
+        {
+            "user_id": user.id,
+            "course_id": course.id,
+            "status": "pending",
+        }
+    )
+
+    if existing_payment:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "A payment for this course is already awaiting review.",
+        )
 
     payment = Payment(
-        user_id=current_user.id,
-        course_id=course_id,
-        amount=course["price"],
+        user_id=user.id,
+        course_id=course.id,
+        amount=course.price,
+        currency="NGN",
+        email=user.email,
         payment_method="bank_transfer",
-        payment_proof=payment_proof_url,
+        payment_proof_url=data.payment_proof_url,
         status="pending",
+        reference=None,
     )
 
     await db.payments.insert_one(payment.to_mongo())
 
     return {
         "success": True,
-        "message": "Payment submitted for verification."
+        "message": (
+            "Your payment proof has been submitted successfully. "
+            "An administrator will review it shortly."
+        ),
+        "payment_id": payment.id,
     }
 
 async def _finalize_payment(reference: str) -> dict:

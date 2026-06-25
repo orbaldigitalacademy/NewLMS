@@ -3,6 +3,9 @@ import os
 import uuid
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from datetime import datetime
+from auth import require_roles
+from models import UserRole
 
 from auth import get_current_user
 from database import db
@@ -136,12 +139,10 @@ async def submit_bank_payment(
         user_id=user.id,
         course_id=course.id,
         amount=course.price,
-        currency="NGN",
         email=user.email,
-        payment_method="bank_transfer",
-        payment_proof_url=data.payment_proof_url,
+        payment_method="paystack",
+        reference=reference,
         status="pending",
-        reference=None,
     )
 
     await db.payments.insert_one(payment.to_mongo())
@@ -198,6 +199,180 @@ async def _finalize_payment(reference: str) -> dict:
 async def verify_payment(reference: str, user: User = Depends(get_current_user)):
     return await _finalize_payment(reference)
 
+@router.get("/pending")
+async def get_pending_payments(
+    current_user: User = Depends(
+        require_roles(UserRole.ADMIN)
+    ),
+):
+    """
+    List all pending bank transfer payments.
+    """
+
+    payments = []
+
+    cursor = db.payments.find(
+        {
+            "payment_method": "bank_transfer",
+            "status": "pending",
+        }
+    )
+
+    async for payment in cursor:
+        student = await db.users.find_one({"_id": payment["user_id"]})
+        course = await db.courses.find_one({"_id": payment["course_id"]})
+
+        payments.append(
+            {
+                "id": payment["_id"],
+                "student_name": student.get("full_name") if student else "",
+                "student_email": student.get("email") if student else "",
+                "course_title": course.get("title") if course else "",
+                "amount": payment["amount"],
+                "payment_proof_url": payment.get("payment_proof_url"),
+                "submitted_at": payment.get("created_at"),
+            }
+        )
+
+    return payments
+
+@router.patch("/{payment_id}/approve")
+async def approve_payment(
+    payment_id: str,
+    review: PaymentReviewRequest,
+    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+):
+    payment_doc = await db.payments.find_one({"_id": payment_id})
+
+    if not payment_doc:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "Payment not found",
+        )
+
+    payment = Payment.from_mongo(payment_doc)
+
+    if payment.status != "pending":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Payment has already been processed.",
+        )
+
+    user_doc = await db.users.find_one({"_id": payment.user_id})
+    course_doc = await db.courses.find_one({"_id": payment.course_id})
+
+    if not user_doc or not course_doc:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "User or course not found.",
+        )
+
+    await db.payments.update_one(
+        {"_id": payment.id},
+        {
+            "$set": {
+                "status": "success",
+                "reviewed_by": current_user.id,
+                "reviewed_at": datetime.now().isoformat(),
+                "remarks": review.remarks,
+            }
+        },
+    )
+
+    await _create_enrollment(
+        User.from_mongo(user_doc),
+        Course.from_mongo(course_doc),
+    )
+
+    return {
+        "success": True,
+        "message": "Payment approved successfully.",
+    }
+
+@router.patch("/{payment_id}/reject")
+async def reject_payment(
+    payment_id: str,
+    review: PaymentReviewRequest,
+    current_user: User = Depends(
+        require_roles(UserRole.ADMIN)
+    ),
+):
+    payment_doc = await db.payments.find_one(
+        {"_id": payment_id}
+    )
+
+    # Payment not found
+    if not payment_doc:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "Payment not found",
+        )
+
+    # Convert Mongo document to Payment model
+    payment = Payment.from_mongo(payment_doc)
+
+    # Prevent rejecting an already processed payment
+    if payment.status != "pending":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Payment has already been processed.",
+        )
+
+    # Update payment
+    await db.payments.update_one(
+        {"_id": payment.id},
+        {
+            "$set": {
+                "status": "rejected",
+                "reviewed_by": current_user.id,
+                "reviewed_at": datetime.now().isoformat(),
+                "remarks": review.remarks,
+            }
+        },
+    )
+
+    return {
+        "success": True,
+        "message": "Payment rejected.",
+    }
+@router.get("/me")
+async def my_payments(
+    current_user: User = Depends(get_current_user),
+):
+    payments = []
+
+    cursor = db.payments.find(
+        {
+            "user_id": current_user.id
+        }
+    )
+
+    async for payment in cursor:
+        course = await db.courses.find_one(
+            {"_id": payment["course_id"]}
+        )
+
+        payments.append(
+            {
+                "id": payment["_id"],
+                "course_title": (
+                    course["title"] if course else ""
+                ),
+                "amount": payment["amount"],
+                "status": payment["status"],
+                "payment_method": payment.get(
+                    "payment_method"
+                ),
+                "submitted_at": payment.get(
+                    "created_at"
+                ),
+                "remarks": payment.get(
+                    "remarks"
+                ),
+            }
+        )
+
+    return payments
 
 @router.post("/webhook")
 async def paystack_webhook(request: Request):

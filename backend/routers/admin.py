@@ -83,7 +83,7 @@ async def list_payments(_: User = Depends(require_admin)):
     docs = await db.payments.find().sort("created_at", -1).to_list(1000)
     return [Payment.from_mongo(d) for d in docs]
 
-@router.put("/{payment_id}/approve")
+@router.put("/payments/{payment_id}/approve")
 async def approve_payment(
     payment_id: str,
     review: PaymentReviewRequest,
@@ -136,7 +136,7 @@ async def approve_payment(
         "message": "Payment approved successfully.",
     }
 
-@router.put("/{payment_id}/reject")
+@router.put("/payments/{payment_id}/reject")
 async def reject_payment(
     payment_id: str,
     review: PaymentReviewRequest,

@@ -7,7 +7,7 @@ from routers.enrollments import _create_enrollment
 from auth import require_roles
 from database import db
 from models.payment import Payment, PaymentReviewRequest
-from models.user import User UserRole
+from models.user import User, UserRole
 from models.course import Course
 
 from auth import require_admin

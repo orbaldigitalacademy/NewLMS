@@ -41,6 +41,7 @@ from routers import testimonials as testimonials_router  # noqa: E402
 from routers import uploads as uploads_router  # noqa: E402
 from routers import contacts as contacts_router  # noqa: E402
 from routers import admin as admin_router  # noqa: E402
+from routers.payments import router as payments_router
 
 
 async def seed_data():

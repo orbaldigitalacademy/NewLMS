@@ -83,6 +83,106 @@ async def list_payments(_: User = Depends(require_admin)):
     docs = await db.payments.find().sort("created_at", -1).to_list(1000)
     return [Payment.from_mongo(d) for d in docs]
 
+@router.put("/{payment_id}/approve")
+async def approve_payment(
+    payment_id: str,
+    review: PaymentReviewRequest,
+    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+):
+    payment_doc = await db.payments.find_one({"_id": payment_id})
+
+    if not payment_doc:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "Payment not found",
+        )
+
+    payment = Payment.from_mongo(payment_doc)
+
+    if payment.status != "pending":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Payment has already been processed.",
+        )
+
+    user_doc = await db.users.find_one({"_id": payment.user_id})
+    course_doc = await db.courses.find_one({"_id": payment.course_id})
+
+    if not user_doc or not course_doc:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "User or course not found.",
+        )
+
+    await db.payments.update_one(
+        {"_id": payment.id},
+        {
+            "$set": {
+                "status": "success",
+                "reviewed_by": current_user.id,
+                "reviewed_at": datetime.now().isoformat(),
+                "remarks": review.remarks,
+            }
+        },
+    )
+
+    await _create_enrollment(
+        User.from_mongo(user_doc),
+        Course.from_mongo(course_doc),
+    )
+
+    return {
+        "success": True,
+        "message": "Payment approved successfully.",
+    }
+
+@router.put("/{payment_id}/reject")
+async def reject_payment(
+    payment_id: str,
+    review: PaymentReviewRequest,
+    current_user: User = Depends(
+        require_roles(UserRole.ADMIN)
+    ),
+):
+    payment_doc = await db.payments.find_one(
+        {"_id": payment_id}
+    )
+
+    # Payment not found
+    if not payment_doc:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "Payment not found",
+        )
+
+    # Convert Mongo document to Payment model
+    payment = Payment.from_mongo(payment_doc)
+
+    # Prevent rejecting an already processed payment
+    if payment.status != "pending":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Payment has already been processed.",
+        )
+
+    # Update payment
+    await db.payments.update_one(
+        {"_id": payment.id},
+        {
+            "$set": {
+                "status": "rejected",
+                "reviewed_by": current_user.id,
+                "reviewed_at": datetime.now().isoformat(),
+                "remarks": review.remarks,
+            }
+        },
+    )
+
+    return {
+        "success": True,
+        "message": "Payment rejected.",
+    }
+
 @router.get("/testimonials")
 async def get_admin_testimonials():
     docs = await db.testimonials.find({}).to_list(1000)

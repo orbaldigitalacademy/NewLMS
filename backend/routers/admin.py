@@ -6,7 +6,7 @@ from datetime import datetime
 from routers.enrollments import _create_enrollment
 from auth import require_roles
 from database import db
-from models import (
+from models.payment import (
     Payment,
     PaymentReviewRequest,
     User,

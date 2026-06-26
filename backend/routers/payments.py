@@ -237,7 +237,7 @@ async def get_pending_payments(
 
     return payments
 
-@router.patch("/{payment_id}/approve")
+@router.put("/{payment_id}/approve")
 async def approve_payment(
     payment_id: str,
     review: PaymentReviewRequest,
@@ -290,7 +290,7 @@ async def approve_payment(
         "message": "Payment approved successfully.",
     }
 
-@router.patch("/{payment_id}/reject")
+@router.put("/{payment_id}/reject")
 async def reject_payment(
     payment_id: str,
     review: PaymentReviewRequest,

@@ -316,6 +316,10 @@ app.include_router(settings.router, prefix="/api")
 app.include_router(api_router)
 app.include_router(testimonials.router)
 app.include_router(uploads_router.router,prefix="/api",)
-app.include_router(admin_payments_router,prefix="/api/admin/payments",tags=["Admin Payments"],)
+app.include_router(
+    payments_router,
+    prefix="/api/payments",
+    tags=["Payments"],
+)
 
 

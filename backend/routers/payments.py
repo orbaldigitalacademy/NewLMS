@@ -135,12 +135,13 @@ async def submit_bank_payment(
             "A payment for this course is already awaiting review.",
         )
 
+    reference = f"PAY-{uuid.uuid4().hex[:12].upper()}"
     payment = Payment(
         user_id=user.id,
         course_id=course.id,
         amount=course.price,
         email=user.email,
-        payment_method="paystack",
+        payment_method="bank_transfer",
         reference=reference,
         status="pending",
     )

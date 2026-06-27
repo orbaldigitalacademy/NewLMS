@@ -47,6 +47,24 @@ const STATIC_INSTRUCTOR = {
   bio: 'Adaeze has led engineering teams at multinational tech firms and trained over 5,000 students across Africa. She combines real-world product experience with a passion for mentorship to help learners ship work that gets them hired.',
 };
 
+// Map allowed string icon names (from settings) to lucide-react components.
+// Keep this list in sync with ALLOWED_ICONS in WhyChooseSettings.jsx.
+const ICON_MAP = {
+  Rocket,
+  HeartHandshake,
+  ShieldCheck,
+  Lightbulb,
+  Sparkles,
+  Target,
+  Award,
+  GraduationCap,
+};
+const resolveIcon = (icon, fallback) => {
+  if (!icon) return fallback;
+  if (typeof icon === 'string') return ICON_MAP[icon] || fallback;
+  return icon; // already a component
+};
+
 const STATIC_WHY_CHOOSE = [
   {
     icon: Rocket,
@@ -694,7 +712,9 @@ const CourseDetailPage = () => {
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {whyItems.map((item, i) => {
-              const Icon = item.icon || STATIC_WHY_CHOOSE[i % STATIC_WHY_CHOOSE.length].icon;
+              const fallbackIcon =
+                STATIC_WHY_CHOOSE[i % STATIC_WHY_CHOOSE.length].icon;
+              const Icon = resolveIcon(item.icon, fallbackIcon);
               return (
                 <div
                   key={i}

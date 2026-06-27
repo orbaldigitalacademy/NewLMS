@@ -317,6 +317,6 @@ app.include_router(settings.router, prefix="/api")
 app.include_router(api_router)
 app.include_router(testimonials.router)
 app.include_router(uploads_router.router,prefix="/api",)
-app.include_router(api_router)
+
 
 

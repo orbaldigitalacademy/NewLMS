@@ -87,7 +87,7 @@ async def update_course(
     doc = await db.courses.find_one({"_id": course_id})
     if not doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Course not found")
-    updates = {k: v for k, v in data.model_dump(exclude_none=True).items()}
+    updates = data.model_dump(exclude_unset=True,by_alias=False,)
     from datetime import datetime, timezone
 
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()

@@ -22,7 +22,7 @@ async def list_courses(
     category: Optional[str] = None,
     level: Optional[str] = None,
     q: Optional[str] = None,
-    is_published: Optional[bool] = Query(default=True),
+    is_published: Optional[bool] = None,
 ):
     filt: dict = {}
     if is_published is not None:

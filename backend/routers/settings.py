@@ -31,7 +31,7 @@ async def _get_or_create_settings() -> dict:
     new_doc = {
         "id": str(uuid.uuid4()),
         "type": "settings",
-        "banks": [],
+        "bank": [],
         "payment_links": [],
         "admin_email": os.getenv("ADMIN_EMAIL", ""),
         "created_at": now,

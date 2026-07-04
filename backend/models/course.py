@@ -105,6 +105,9 @@ class Course(BaseDocument):
         validation_alias=AliasChoices("image_url", "thumbnail_url"),
     )
     video_url: Optional[str] = None
+    # Curriculum document
+    curriculum_url: Optional[str] = None
+    curriculum_filename: Optional[str] = None
 
     # Instructor: legacy scalar fields (linking to a user) + new nested profile
     # displayed on the course page.
@@ -159,6 +162,8 @@ class CourseCreate(BaseModel):
         validation_alias=AliasChoices("image_url", "thumbnail_url"),
     )
     video_url: Optional[str] = None
+    curriculum_url: Optional[str] = None
+    curriculum_filename: Optional[str] = None
 
     duration: str = ""
     duration_minutes: int = 0
@@ -211,6 +216,8 @@ class CourseUpdate(BaseModel):
         validation_alias=AliasChoices("image_url", "thumbnail_url"),
     )
     video_url: Optional[str] = None
+    curriculum_url: Optional[str] = None
+    curriculum_filename: Optional[str] = None
 
     duration: Optional[str] = None
     duration_minutes: Optional[int] = None

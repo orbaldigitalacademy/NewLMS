@@ -48,6 +48,6 @@ class AdminEmailInput(BaseModel):
 
 
 class SettingsResponse(BaseModel):
-    banks: List[BankAccount] = []
+    bank: List[BankAccount] = []
     payment_links: List[PaymentLink] = []
     admin_email: str = ""

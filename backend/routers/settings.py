@@ -89,7 +89,7 @@ async def update_admin_email(
 
 
 # ----- Bank accounts -----
-@router.post("/bank", response_model=SettingsResponse)
+@router.put("/bank", response_model=SettingsResponse)
 async def add_bank(
     payload: BankAccountInput,
     _: None = Depends(require_admin),

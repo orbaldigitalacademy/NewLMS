@@ -31,7 +31,7 @@ async def _get_or_create_settings() -> dict:
     new_doc = {
         "id": str(uuid.uuid4()),
         "type": "settings",
-        "bank": [],
+        "banks": [],
         "payment_links": [],
         "admin_email": os.getenv("ADMIN_EMAIL", ""),
         "created_at": now,
@@ -43,7 +43,7 @@ async def _get_or_create_settings() -> dict:
 
 def _shape(doc: dict) -> SettingsResponse:
     return SettingsResponse(
-        bank=[BankAccount(**b) for b in doc.get("bank", [])],
+        banks=[BankAccount(**b) for b in doc.get("banks", [])],
         payment_links=[PaymentLink(**p) for p in doc.get("payment_links", [])],
         admin_email=doc.get("admin_email", ""),
     )
@@ -89,31 +89,31 @@ async def update_admin_email(
 
 
 # ----- Bank accounts -----
-@router.put("/bank", response_model=SettingsResponse)
+@router.post("/banks", response_model=SettingsResponse)
 async def add_bank(
     payload: BankAccountInput,
     _: None = Depends(require_admin),
 ):
     doc = await _get_or_create_settings()
-    bank = doc.get("bank", [])
+    banks = doc.get("banks", [])
     new_bank = BankAccount(**_bank_payload(payload)).model_dump()
-    if not bank:
+    if not banks:
         new_bank["is_default"] = True
     elif new_bank["is_default"]:
-        for b in bank:
+        for b in banks:
             b["is_default"] = False
-    bank.append(new_bank)
-    updated = await _persist({"bank": bank})
+    banks.append(new_bank)
+    updated = await _persist({"banks": banks})
     return _shape(updated)
 
 
-@router.put("/bank/reorder", response_model=SettingsResponse)
-async def reorder_bank(
+@router.put("/banks/reorder", response_model=SettingsResponse)
+async def reorder_banks(
     payload: BankReorderInput,
     _: None = Depends(require_admin),
 ):
     doc = await _get_or_create_settings()
-    bank = doc.get("bank", [])
+    banks = doc.get("banks", [])
     by_id = {b["id"]: b for b in banks}
     if set(payload.ordered_ids) != set(by_id.keys()):
         raise HTTPException(
@@ -125,38 +125,38 @@ async def reorder_bank(
     return _shape(updated)
 
 
-@router.put("/bank/{bank_id}", response_model=SettingsResponse)
+@router.put("/banks/{bank_id}", response_model=SettingsResponse)
 async def update_bank(
     bank_id: str,
     payload: BankAccountInput,
     _: None = Depends(require_admin),
 ):
     doc = await _get_or_create_settings()
-    bank = doc.get("bank", [])
-    target = next((b for b in bank if b["id"] == bank_id), None)
+    banks = doc.get("banks", [])
+    target = next((b for b in banks if b["id"] == bank_id), None)
     if not target:
         raise HTTPException(status_code=404, detail="Bank not found")
     updates = _bank_payload(payload)
     if updates["is_default"]:
-        for b in bank:
+        for b in banks:
             b["is_default"] = False
     target.update(updates)
-    updated = await _persist({"bank": banks})
+    updated = await _persist({"banks": banks})
     return _shape(updated)
 
 
-@router.delete("/bank/{bank_id}", response_model=SettingsResponse)
+@router.delete("/banks/{bank_id}", response_model=SettingsResponse)
 async def delete_bank(
     bank_id: str,
     _: None = Depends(require_admin),
 ):
     doc = await _get_or_create_settings()
-    banks = [b for b in doc.get("bank", []) if b["id"] != bank_id]
-    if len(bank) == len(doc.get("bank", [])):
+    banks = [b for b in doc.get("banks", []) if b["id"] != bank_id]
+    if len(banks) == len(doc.get("banks", [])):
         raise HTTPException(status_code=404, detail="Bank not found")
-    if bank and not any(b.get("is_default") for b in bank):
-        bank[0]["is_default"] = True
-    updated = await _persist({"bank": bank})
+    if banks and not any(b.get("is_default") for b in banks):
+        banks[0]["is_default"] = True
+    updated = await _persist({"banks": banks})
     return _shape(updated)
 
 

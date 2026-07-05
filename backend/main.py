@@ -313,7 +313,7 @@ api_router.include_router(contacts_router.router)
 api_router.include_router(admin_router.router)
 api_router.include_router(live_classes_router.router)
 
-app.include_router(settings_router, prefix="/api")
+app.include_router(settings.router, prefix="/api")
 app.include_router(api_router)
 app.include_router(testimonials.router)
 app.include_router(uploads_router.router,prefix="/api",)

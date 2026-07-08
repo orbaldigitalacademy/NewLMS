@@ -43,6 +43,7 @@ from routers import uploads as uploads_router  # noqa: E402
 from routers import contacts as contacts_router  # noqa: E402
 from routers import admin as admin_router  # noqa: E402
 from routers.payments import router as payments_router
+from routers import profile
 
 
 async def seed_data():
@@ -318,6 +319,7 @@ app.include_router(settings_router, prefix="/api")
 app.include_router(api_router)
 app.include_router(testimonials.router)
 app.include_router(uploads_router.router,prefix="/api",)
+app.include_router(profile.router, prefix="/api")
 
 
 

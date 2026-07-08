@@ -106,27 +106,20 @@ async def create_testimonial(
     data: TestimonialCreate,
     user: User = Depends(get_current_user),
 ):
-    """
-    Students submit testimonials.
-    Admin approval required before publication.
-    """
     testimonial = Testimonial(
-    user_id=user.id,
-    user_name=user.name,
-    avatar_url=data.avatar_url or user.avatar_url,
-    content=data.content,
-    video_url=data.video_url,
-    rating=data.rating,
-    is_approved=False,
-    created_at= datetime.utcnow()
-)
-
-    await db.testimonials.insert_one(
-        testimonial.to_mongo()
+        user_id=user.id,
+        user_name=user.name,
+        avatar_url=data.avatar_url or getattr(user, "avatar_url", None),
+        content=data.content,
+        video_url=data.video_url,
+        rating=data.rating,
+        is_approved=False,
+        created_at=datetime.now(timezone.utc).isoformat(),
     )
 
-    return testimonial
+    await db.testimonials.insert_one(testimonial.to_mongo())
 
+    return testimonial
 
 @router.get("/admin")
 async def admin_list_testimonials(

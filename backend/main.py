@@ -215,113 +215,113 @@ async def seed_data():
         logger.info("Seeded courses and lessons")
 
     # Seed testimonials
-if await db.testimonials.count_documents({}) == 0:
-    testimonials = [
-        {
-            "user_name": "Abutu Gabriel, Lagos Nigeria",
-            "content": (
-                "Orbal Digital Academy played a key role in my career growth. "
-                "I joined the January 2026 cohort, and by February, I secured a position as an Inventory Officer at a multinational fashion company. "
-                "During my interview, I confidently demonstrated What-If Analysis and Power BI visualization skills I gained from the training, and I was asked to resume the very next day. "
-                "I'm sincerely grateful to Dr. Moses Kor for the exceptional training and mentorship."
-            ),
-            "rating": 5,
-            "is_approved": True,
-            "is_featured": True,
-            "avatar_url": "https://images.unsplash.com/photo-1662850886700-4ec19bd30d11?crop=entropy&cs=srgb&fm=jpg&w=400&q=80",
-        },
-        {
-            "user_name": "Esther Johnson",
-            "content": (
-                "Before joining Orbal Digital Academy, I only knew basic Excel. "
-                "Within three months, I was building interactive Power BI dashboards "
-                "and analyzing business data confidently. The practical assignments "
-                "made all the difference."
-            ),
-            "rating": 5,
-            "is_approved": True,
-            "is_featured": True,
-        },
-        {
-            "user_name": "Samuel Okafor",
-            "content": (
-                "The Data Analytics training at Orbal Digital Academy significantly improved my skills in Microsoft Excel and enhanced my proficiency in Power BI. "
-                "I have been able to apply these skills in my daily tasks and in preparing my office's monthly reports, making my work more efficient and effective. "
-            ),
-            "rating": 5,
-            "is_approved": True,
-            "is_featured": False,
-        },
-        {
-            "user_name": "Monica Quaqua",
-            "content": (
-                "The Online Data Analysis course has significantly strengthened my skills as a Monitoring, Evaluation, and Learning (MEL) professional, "
-                "equipping me with practical experience in Python, Excel, Power B, SQL and other data analysis and visualization tools "
-            ),
-            "rating": 5,
-            "is_approved": True,
-            "is_featured": False,
-        },
-        {
-            "user_name": "Hamza Ibrahim",
-            "content": (
-                "The training really helped me a lot. I learned discipline and how to properly analyze my business, and it has made things much easier for me. "
-                "Thank you for the impactful training. "
-            ),
-            "rating": 4,
-            "is_approved": True,
-            "is_featured": True,
-        },
-        {
-            "user_name": "Jay Sackie Menniboe",
-            "content": (
-                "I'm truly grateful to God for Mr. Moses and his team. "
-                "The Data Analytics training anchored by Mr. Moses has practically prepared me for my specialty program (Health Knowledge & Informatica). "
-            ),
-            "rating": 5,
-            "is_approved": True,
-            "is_featured": False,
-        },
-        {
-            "user_name": "David Eze",
-            "content": (
-                "The Python for Data Analysis module completely changed how I work "
-                "with data. Tasks that used to take hours in Excel now take just "
-                "a few minutes."
-            ),
-            "rating": 4,
-            "is_approved": True,
-            "is_featured": False,
-        },
-        {
-            "user_name": "Blessing Adebayo",
-            "content": (
-                "The mentorship didn't end after classes. We received career advice, "
-                "CV reviews, and interview preparation that helped me transition into "
-                "my first data role."
-            ),
-            "rating": 5,
-            "is_approved": True,
-            "is_featured": True,
-        },
-        {
-            "user_name": "Emmanuel Peter",
-            "content": (
-                "One thing that stood out was the emphasis on solving real business "
-                "problems rather than simply learning software. That practical mindset "
-                "has been invaluable."
-            ),
-            "rating": 4,
-            "is_approved": True,
-            "is_featured": False,
-        },
-    ]
-
-    for t in testimonials:
-        tdoc = Testimonial(**t)
-        await db.testimonials.insert_one(tdoc.to_mongo())
-
-    logger.info("Seeded testimonials")
+    if await db.testimonials.count_documents({}) == 0:
+        testimonials = [
+            {
+                "user_name": "Abutu Gabriel, Lagos Nigeria",
+                "content": (
+                    "Orbal Digital Academy played a key role in my career growth. "
+                    "I joined the January 2026 cohort, and by February, I secured a position as an Inventory Officer at a multinational fashion company. "
+                    "During my interview, I confidently demonstrated What-If Analysis and Power BI visualization skills I gained from the training, and I was asked to resume the very next day. "
+                    "I'm sincerely grateful to Dr. Moses Kor for the exceptional training and mentorship."
+                ),
+                "rating": 5,
+                "is_approved": True,
+                "is_featured": True,
+                "avatar_url": "https://images.unsplash.com/photo-1662850886700-4ec19bd30d11?crop=entropy&cs=srgb&fm=jpg&w=400&q=80",
+            },
+            {
+                "user_name": "Esther Johnson",
+                "content": (
+                    "Before joining Orbal Digital Academy, I only knew basic Excel. "
+                    "Within three months, I was building interactive Power BI dashboards "
+                    "and analyzing business data confidently. The practical assignments "
+                    "made all the difference."
+                ),
+                "rating": 5,
+                "is_approved": True,
+                "is_featured": True,
+            },
+            {
+                "user_name": "Samuel Okafor",
+                "content": (
+                    "The Data Analytics training at Orbal Digital Academy significantly improved my skills in Microsoft Excel and enhanced my proficiency in Power BI. "
+                    "I have been able to apply these skills in my daily tasks and in preparing my office's monthly reports, making my work more efficient and effective. "
+                ),
+                "rating": 5,
+                "is_approved": True,
+                "is_featured": False,
+            },
+            {
+                "user_name": "Monica Quaqua",
+                "content": (
+                    "The Online Data Analysis course has significantly strengthened my skills as a Monitoring, Evaluation, and Learning (MEL) professional, "
+                    "equipping me with practical experience in Python, Excel, Power B, SQL and other data analysis and visualization tools "
+                ),
+                "rating": 5,
+                "is_approved": True,
+                "is_featured": False,
+            },
+            {
+                "user_name": "Hamza Ibrahim",
+                "content": (
+                    "The training really helped me a lot. I learned discipline and how to properly analyze my business, and it has made things much easier for me. "
+                    "Thank you for the impactful training. "
+                ),
+                "rating": 4,
+                "is_approved": True,
+                "is_featured": True,
+            },
+            {
+                "user_name": "Jay Sackie Menniboe",
+                "content": (
+                    "I'm truly grateful to God for Mr. Moses and his team. "
+                    "The Data Analytics training anchored by Mr. Moses has practically prepared me for my specialty program (Health Knowledge & Informatica). "
+                ),
+                "rating": 5,
+                "is_approved": True,
+                "is_featured": False,
+            },
+            {
+                "user_name": "David Eze",
+                "content": (
+                    "The Python for Data Analysis module completely changed how I work "
+                    "with data. Tasks that used to take hours in Excel now take just "
+                    "a few minutes."
+                ),
+                "rating": 4,
+                "is_approved": True,
+                "is_featured": False,
+            },
+            {
+                "user_name": "Blessing Adebayo",
+                "content": (
+                    "The mentorship didn't end after classes. We received career advice, "
+                    "CV reviews, and interview preparation that helped me transition into "
+                    "my first data role."
+                ),
+                "rating": 5,
+                "is_approved": True,
+                "is_featured": True,
+            },
+            {
+                "user_name": "Emmanuel Peter",
+                "content": (
+                    "One thing that stood out was the emphasis on solving real business "
+                    "problems rather than simply learning software. That practical mindset "
+                    "has been invaluable."
+                ),
+                "rating": 4,
+                "is_approved": True,
+                "is_featured": False,
+            },
+        ]
+    
+        for t in testimonials:
+            tdoc = Testimonial(**t)
+            await db.testimonials.insert_one(tdoc.to_mongo())
+    
+        logger.info("Seeded testimonials")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):

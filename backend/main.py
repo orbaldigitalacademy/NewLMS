@@ -219,10 +219,10 @@ async def seed_data():
             {
                 "user_name": "Abutu Gabriel",
                 "content": (
-                    “Orbal Digital Academy played a key role in my career growth."
+                    "Orbal Digital Academy played a key role in my career growth."
                     "I joined the January 2026 cohort, and by February, I secured a position as an Inventory Officer at a multinational fashion company." 
                     "During my interview, I confidently demonstrated What-If Analysis and Power BI visualization skills I gained from the training, and I was asked to resume the very next day." 
-                    "I'm sincerely grateful to Dr. Moses Kor for the exceptional training and mentorship.”
+                    "I'm sincerely grateful to Dr. Moses Kor for the exceptional training and mentorship."
                 ),
                 "rating": 5,
                 "is_approved": True,

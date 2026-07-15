@@ -241,7 +241,7 @@ async def seed_data():
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": True,
-                avatar_url": "/images/ordue.jpeg",
+                "avatar_url": "/images/ordue.jpeg",
             },
             {
                 "user_name": "Timothy Terver",

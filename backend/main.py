@@ -228,10 +228,11 @@ async def seed_data():
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": True,
-                "avatar_url": "https://images.unsplash.com/photo-1662850886700-4ec19bd30d11?crop=entropy&cs=srgb&fm=jpg&w=400&q=80",
+                "avatar_url": "/images/Abu.png",
+},
             },
             {
-                "user_name": "Esther Johnson",
+                "user_name": "Godwin Ifer",
                 "content": (
                     "Before joining Orbal Digital Academy, I only knew basic Excel. "
                     "Within three months, I was building interactive Power BI dashboards "
@@ -241,9 +242,10 @@ async def seed_data():
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": True,
+                avatar_url": "/images/ordue.jpg",
             },
             {
-                "user_name": "Samuel Okafor",
+                "user_name": "Timothy Terver",
                 "content": (
                     "The Data Analytics training at Orbal Digital Academy significantly improved my skills in Microsoft Excel and enhanced my proficiency in Power BI. "
                     "I have been able to apply these skills in my daily tasks and in preparing my office's monthly reports, making my work more efficient and effective. "
@@ -251,6 +253,7 @@ async def seed_data():
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": False,
+                avatar_url": "/images/bember.jpg",
             },
             {
                 "user_name": "Monica Quaqua",
@@ -261,6 +264,7 @@ async def seed_data():
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": False,
+                "avatar_url": "/images/Monica Quaqua.jpeg",
             },
             {
                 "user_name": "Hamza Ibrahim",
@@ -271,6 +275,20 @@ async def seed_data():
                 "rating": 4,
                 "is_approved": True,
                 "is_featured": True,
+                "avatar_url": "/images/Hamza.jpeg",
+            },
+
+            {
+                "user_name": "Bassey Friday",
+                "content": (
+                    "One thing that stood out was the emphasis on solving real business "
+                    "problems rather than simply learning software. That practical mindset "
+                    "has been invaluable."
+                ),
+                "rating": 4,
+                "is_approved": True,
+                "is_featured": False,
+                avatar_url": "/images/basseyimage.jpg",
             },
             {
                 "user_name": "Jay Sackie Menniboe",
@@ -281,9 +299,10 @@ async def seed_data():
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": False,
+                 avatar_url": "/images/Jay Sachie.jpeg",
             },
             {
-                "user_name": "David Eze",
+                "user_name": "Dorcas Moses",
                 "content": (
                     "The Python for Data Analysis module completely changed how I work "
                     "with data. Tasks that used to take hours in Excel now take just "
@@ -292,9 +311,10 @@ async def seed_data():
                 "rating": 4,
                 "is_approved": True,
                 "is_featured": False,
+                avatar_url": "/images/Doo.jpg",
             },
             {
-                "user_name": "Blessing Adebayo",
+                "user_name": "Judith Timothy",
                 "content": (
                     "The mentorship didn't end after classes. We received career advice, "
                     "CV reviews, and interview preparation that helped me transition into "
@@ -303,18 +323,9 @@ async def seed_data():
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": True,
+                avatar_url": "/images/judiimage.jpg",
             },
-            {
-                "user_name": "Emmanuel Peter",
-                "content": (
-                    "One thing that stood out was the emphasis on solving real business "
-                    "problems rather than simply learning software. That practical mindset "
-                    "has been invaluable."
-                ),
-                "rating": 4,
-                "is_approved": True,
-                "is_featured": False,
-            },
+            
         ]
     
         for t in testimonials:

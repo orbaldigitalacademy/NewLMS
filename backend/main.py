@@ -277,7 +277,7 @@ if await db.testimonials.count_documents({}) == 0:
             "content": (
                 "I'm truly grateful to God for Mr. Moses and his team. "
                 "The Data Analytics training anchored by Mr. Moses has practically prepared me for my specialty program (Health Knowledge & Informatica). "
-                
+            ),
             "rating": 5,
             "is_approved": True,
             "is_featured": False,

@@ -217,10 +217,12 @@ async def seed_data():
     if await db.testimonials.count_documents({}) == 0:
         testimonials = [
             {
-                "user_name": "Chioma Okeke",
+                "user_name": "Abutu Gabriel",
                 "content": (
-                    "The Foundations course rewired how I look at every poster, "
-                    "app, and book cover. The critique sessions alone were worth it."
+                    “Orbal Digital Academy played a key role in my career growth."
+                    "I joined the January 2026 cohort, and by February, I secured a position as an Inventory Officer at a multinational fashion company." 
+                    "During my interview, I confidently demonstrated What-If Analysis and Power BI visualization skills I gained from the training, and I was asked to resume the very next day." 
+                    "I'm sincerely grateful to Dr. Moses Kor for the exceptional training and mentorship.”
                 ),
                 "rating": 5,
                 "is_approved": True,

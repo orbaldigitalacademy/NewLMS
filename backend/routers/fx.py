@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 #     app.include_router(fx_router)
 #
 # Do not add prefix="/api" again when mounting it.
-fx_router = APIRouter(prefix="/api/fx", tags=["fx"])
+fx_router = APIRouter(prefix="/fx", tags=["fx"])
 
 
 # =============================================================================

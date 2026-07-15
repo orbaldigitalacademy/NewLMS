@@ -50,15 +50,15 @@ from routers.fx import fx_router
 async def seed_data():
     """Seed an admin and a few demo courses on first run."""
     # Seed admin
-    admin_email = "admin@atlasacademy.io"
+    admin_email = "superadmin@gmail.com"
     existing_admin = await db.users.find_one({"email": admin_email})
     if not existing_admin:
         admin = User(
             email=admin_email,
-            name="Atlas Admin",
-            password_hash=hash_password("admin123"),
+            name="Orbal Admin",
+            password_hash=hash_password("Oryiman@21"),
             role="admin",
-            bio="Founding educator at Atlas Academy.",
+            bio="Founding educator at Orbal Digital Academy.",
         )
         await db.users.insert_one(admin.to_mongo())
         logger.info("Seeded admin user")
@@ -67,12 +67,12 @@ async def seed_data():
     admin_name = admin_doc["name"]
 
     # Seed student
-    student_email = "student@atlasacademy.io"
+    student_email = "student@orbalacademy.com"
     if not await db.users.find_one({"email": student_email}):
         student = User(
             email=student_email,
             name="Ada Lovelace",
-            password_hash=hash_password("student123"),
+            password_hash=hash_password("Pioneerstudent"),
             role="student",
         )
         await db.users.insert_one(student.to_mongo())
@@ -215,50 +215,113 @@ async def seed_data():
         logger.info("Seeded courses and lessons")
 
     # Seed testimonials
-    if await db.testimonials.count_documents({}) == 0:
-        testimonials = [
-            {
-                "user_name": "Abutu Gabriel",
-                "content": (
-                    "Orbal Digital Academy played a key role in my career growth."
-                    "I joined the January 2026 cohort, and by February, I secured a position as an Inventory Officer at a multinational fashion company." 
-                    "During my interview, I confidently demonstrated What-If Analysis and Power BI visualization skills I gained from the training, and I was asked to resume the very next day." 
-                    "I'm sincerely grateful to Dr. Moses Kor for the exceptional training and mentorship."
-                ),
-                "rating": 5,
-                "is_approved": True,
-                "is_featured": True,
-                "avatar_url": "https://images.unsplash.com/photo-1662850886700-4ec19bd30d11?crop=entropy&cs=srgb&fm=jpg&w=400&q=80",
-            },
-            {
-                "user_name": "Marcus Adeyemi",
-                "content": (
-                    "I shipped my first production API in week three. "
-                    "Atlas Academy doesn't just teach—it makes you build."
-                ),
-                "rating": 5,
-                "is_approved": True,
-                "is_featured": True,
-                "avatar_url": "https://images.pexels.com/photos/8199172/pexels-photo-8199172.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=400&w=400",
-            },
-            {
-                "user_name": "Zara Bello",
-                "content": (
-                    "The product strategy lessons gave me a vocabulary for "
-                    "conversations I used to dread. My team has noticed."
-                ),
-                "rating": 5,
-                "is_approved": True,
-                "is_featured": True,
-            },
-        ]
-    
-        for t in testimonials:
-            tdoc = Testimonial(**t)
-            await db.testimonials.insert_one(tdoc.to_mongo())
-    
-        logger.info("Seeded testimonials")
-        
+if await db.testimonials.count_documents({}) == 0:
+    testimonials = [
+        {
+            "user_name": "Abutu Gabriel, Lagos Nigeria",
+            "content": (
+                "Orbal Digital Academy played a key role in my career growth. "
+                "I joined the January 2026 cohort, and by February, I secured a position as an Inventory Officer at a multinational fashion company. "
+                "During my interview, I confidently demonstrated What-If Analysis and Power BI visualization skills I gained from the training, and I was asked to resume the very next day. "
+                "I'm sincerely grateful to Dr. Moses Kor for the exceptional training and mentorship."
+            ),
+            "rating": 5,
+            "is_approved": True,
+            "is_featured": True,
+            "avatar_url": "https://images.unsplash.com/photo-1662850886700-4ec19bd30d11?crop=entropy&cs=srgb&fm=jpg&w=400&q=80",
+        },
+        {
+            "user_name": "Esther Johnson",
+            "content": (
+                "Before joining Orbal Digital Academy, I only knew basic Excel. "
+                "Within three months, I was building interactive Power BI dashboards "
+                "and analyzing business data confidently. The practical assignments "
+                "made all the difference."
+            ),
+            "rating": 5,
+            "is_approved": True,
+            "is_featured": True,
+        },
+        {
+            "user_name": "Samuel Okafor",
+            "content": (
+                "The Data Analytics training at Orbal Digital Academy significantly improved my skills in Microsoft Excel and enhanced my proficiency in Power BI. "
+                "I have been able to apply these skills in my daily tasks and in preparing my office's monthly reports, making my work more efficient and effective. "
+            ),
+            "rating": 5,
+            "is_approved": True,
+            "is_featured": False,
+        },
+        {
+            "user_name": "Monica Quaqua",
+            "content": (
+                "The Online Data Analysis course has significantly strengthened my skills as a Monitoring, Evaluation, and Learning (MEL) professional, "
+                "equipping me with practical experience in Python, Excel, Power B, SQL and other data analysis and visualization tools "
+            ),
+            "rating": 5,
+            "is_approved": True,
+            "is_featured": False,
+        },
+        {
+            "user_name": "Hamza Ibrahim",
+            "content": (
+                "The training really helped me a lot. I learned discipline and how to properly analyze my business, and it has made things much easier for me. "
+                "Thank you for the impactful training. "
+            ),
+            "rating": 4,
+            "is_approved": True,
+            "is_featured": True,
+        },
+        {
+            "user_name": "Jay Sackie Menniboe",
+            "content": (
+                "I'm truly grateful to God for Mr. Moses and his team. "
+                "The Data Analytics training anchored by Mr. Moses has practically prepared me for my specialty program (Health Knowledge & Informatica). "
+                
+            "rating": 5,
+            "is_approved": True,
+            "is_featured": False,
+        },
+        {
+            "user_name": "David Eze",
+            "content": (
+                "The Python for Data Analysis module completely changed how I work "
+                "with data. Tasks that used to take hours in Excel now take just "
+                "a few minutes."
+            ),
+            "rating": 4,
+            "is_approved": True,
+            "is_featured": False,
+        },
+        {
+            "user_name": "Blessing Adebayo",
+            "content": (
+                "The mentorship didn't end after classes. We received career advice, "
+                "CV reviews, and interview preparation that helped me transition into "
+                "my first data role."
+            ),
+            "rating": 5,
+            "is_approved": True,
+            "is_featured": True,
+        },
+        {
+            "user_name": "Emmanuel Peter",
+            "content": (
+                "One thing that stood out was the emphasis on solving real business "
+                "problems rather than simply learning software. That practical mindset "
+                "has been invaluable."
+            ),
+            "rating": 4,
+            "is_approved": True,
+            "is_featured": False,
+        },
+    ]
+
+    for t in testimonials:
+        tdoc = Testimonial(**t)
+        await db.testimonials.insert_one(tdoc.to_mongo())
+
+    logger.info("Seeded testimonials")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):

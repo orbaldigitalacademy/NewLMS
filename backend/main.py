@@ -252,7 +252,7 @@ async def seed_data():
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": False,
-                avatar_url": "/images/bember.jpeg",
+                "avatar_url": "/images/bember.jpeg",
             },
             {
                 "user_name": "Monica Quaqua",
@@ -287,7 +287,7 @@ async def seed_data():
                 "rating": 4,
                 "is_approved": True,
                 "is_featured": False,
-                avatar_url": "/images/basseyimage.jpeg",
+                "avatar_url": "/images/basseyimage.jpeg",
             },
             {
                 "user_name": "Jay Sackie Menniboe",
@@ -298,7 +298,7 @@ async def seed_data():
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": False,
-                 avatar_url": "/images/Jay Sachie.jpeg",
+                "avatar_url": "/images/Jay Sachie.jpeg",
             },
             {
                 "user_name": "Dorcas Moses",
@@ -310,7 +310,7 @@ async def seed_data():
                 "rating": 4,
                 "is_approved": True,
                 "is_featured": False,
-                avatar_url": "/images/Doo.jpeg",
+                "avatar_url": "/images/Doo.jpeg",
             },
             {
                 "user_name": "Judith Timothy",
@@ -322,7 +322,7 @@ async def seed_data():
                 "rating": 5,
                 "is_approved": True,
                 "is_featured": True,
-                avatar_url": "/images/judiimage.jpeg",
+                "avatar_url": "/images/judiimage.jpeg",
             },
             
         ]

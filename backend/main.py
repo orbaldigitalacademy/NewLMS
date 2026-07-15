@@ -229,7 +229,6 @@ async def seed_data():
                 "is_approved": True,
                 "is_featured": True,
                 "avatar_url": "/images/Abu.png",
-},
             },
             {
                 "user_name": "Godwin Ifer",

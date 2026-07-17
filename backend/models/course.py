@@ -164,6 +164,11 @@ class CourseCreate(BaseModel):
     video_url: Optional[str] = None
     curriculum_url: Optional[str] = None
     curriculum_filename: Optional[str] = None
+    start_date: Optional[str] = None
+    class_days: List[str] = []
+    class_time: Optional[str] = None
+    class_duration: Optional[str] = None
+    venue: Optional[str] = None
 
     duration: str = ""
     duration_minutes: int = 0
@@ -218,6 +223,11 @@ class CourseUpdate(BaseModel):
     video_url: Optional[str] = None
     curriculum_url: Optional[str] = None
     curriculum_filename: Optional[str] = None
+    start_date: Optional[str] = None
+    class_days: Optional[List[str]] = None
+    class_time: Optional[str] = None
+    class_duration: Optional[str] = None
+    venue: Optional[str] = None
 
     duration: Optional[str] = None
     duration_minutes: Optional[int] = None

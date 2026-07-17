@@ -310,7 +310,7 @@ async def seed_data():
                 "rating": 4,
                 "is_approved": True,
                 "is_featured": False,
-                "avatar_url": "/images/Doo.jpeg",
+                "avatar_url": "/images/doo.jpeg",
             },
             {
                 "user_name": "Judith Timothy",

@@ -88,57 +88,60 @@ class Course(BaseDocument):
     title: str
     slug: str
     short_description: str
-    # Renamed from `description` — React form sends `full_description`.
-    # AliasChoices lets old records/clients using `description` still work.
+
     full_description: str = Field(
         default="",
         validation_alias=AliasChoices("full_description", "description"),
     )
+
     category: str = ""
     level: LevelType = "beginner"
-    price: float = 0.0  # in NGN; 0 = free
+    price: float = 0.0
     currency: str = "NGN"
 
-    # Renamed from `thumbnail_url` — React form sends `image_url`.
     image_url: Optional[str] = Field(
         default=None,
         validation_alias=AliasChoices("image_url", "thumbnail_url"),
     )
+
     video_url: Optional[str] = None
-    # Curriculum document
+
     curriculum_url: Optional[str] = None
     curriculum_filename: Optional[str] = None
 
-    # Instructor: legacy scalar fields (linking to a user) + new nested profile
-    # displayed on the course page.
     instructor_id: str = ""
     instructor_name: str = ""
     instructor: Optional[Instructor] = None
 
     tags: List[str] = Field(default_factory=list)
 
-    # Duration: keep the int for internal maths, add a human string for hero.
-    duration: str = ""                # e.g. "8 weeks" — shown in the hero
-    duration_minutes: int = 0         # for filtering / analytics
+    duration: str = ""
+    duration_minutes: int = 0
+
+    # ---- class schedule ----
+    start_date: Optional[str] = None
+    class_days: List[str] = Field(default_factory=list)
+    class_time: Optional[str] = None
+    class_duration: Optional[str] = None
+    venue: Optional[str] = None
 
     is_published: bool = False
     enrollment_count: int = 0
 
     # ---- string-list sections ----
     learning_outcomes: List[str] = Field(default_factory=list)
-    problems:          List[str] = Field(default_factory=list)
-    who_for:           List[str] = Field(default_factory=list)
-    requirements:      List[str] = Field(default_factory=list)
-    offer_includes:    List[str] = Field(default_factory=list)
+    problems: List[str] = Field(default_factory=list)
+    who_for: List[str] = Field(default_factory=list)
+    requirements: List[str] = Field(default_factory=list)
+    offer_includes: List[str] = Field(default_factory=list)
 
     # ---- array-of-object sections ----
-    projects:     List[Project]       = Field(default_factory=list)
-    careers:      List[Career]        = Field(default_factory=list)
-    testimonials: List[Testimonial]   = Field(default_factory=list)
-    why_choose:   List[WhyChooseItem] = Field(default_factory=list)
-    compare_rows: List[CompareRow]    = Field(default_factory=list)
-    faqs:         List[FAQ]           = Field(default_factory=list)
-
+    projects: List[Project] = Field(default_factory=list)
+    careers: List[Career] = Field(default_factory=list)
+    testimonials: List[Testimonial] = Field(default_factory=list)
+    why_choose: List[WhyChooseItem] = Field(default_factory=list)
+    compare_rows: List[CompareRow] = Field(default_factory=list)
+    faqs: List[FAQ] = Field(default_factory=list)
 
 # ---------------------------------------------------------------------------
 # Create payload — everything the admin form can send at creation.
@@ -165,7 +168,7 @@ class CourseCreate(BaseModel):
     curriculum_url: Optional[str] = None
     curriculum_filename: Optional[str] = None
     start_date: Optional[str] = None
-    class_days: List[str] = []
+    class_days: List[str] = Field(default_factory=list)
     class_time: Optional[str] = None
     class_duration: Optional[str] = None
     venue: Optional[str] = None

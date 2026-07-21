@@ -9,6 +9,8 @@ import secrets
 import smtplib
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+import resend
+
 
 from fastapi import (
     APIRouter,
@@ -46,25 +48,15 @@ FRONTEND_URL = os.getenv(
     "http://localhost:3000",
 ).rstrip("/")
 
-SMTP_HOST = os.getenv("SMTP_HOST", "")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-
+resend.api_key = os.getenv("RESEND_API_KEY")
 EMAIL_FROM = os.getenv(
     "EMAIL_FROM",
-    SMTP_USERNAME or "no-reply@orbalacademy.com",
-)
-
-EMAIL_FROM_NAME = os.getenv(
-    "EMAIL_FROM_NAME",
-    "Orbal Digital Academy",
+    "Orbal Digital Academy <noreply@orbalacademy.com>"
 )
 
 EMAIL_VERIFICATION_EXPIRE_HOURS = int(
     os.getenv("EMAIL_VERIFICATION_EXPIRE_HOURS", "24")
 )
-
 
 # -------------------------------------------------------------------
 # Response models
@@ -117,218 +109,152 @@ def _hash_verification_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def _create_verification_token() -> tuple[str, str, datetime]:
-    """
-    Return:
-        raw_token
-        hashed_token
-        expiry_datetime
-    """
+# Configure Resend
+resend.api_key = os.getenv("RESEND_API_KEY")
 
-    raw_token = secrets.token_urlsafe(48)
-    hashed_token = _hash_verification_token(raw_token)
-
-    expires_at = _utc_now() + timedelta(
-        hours=EMAIL_VERIFICATION_EXPIRE_HOURS
-    )
-
-    return raw_token, hashed_token, expires_at
-
-
-def _build_verification_url(raw_token: str) -> str:
-    return (
-        f"{FRONTEND_URL}/verify-email"
-        f"?token={raw_token}"
-    )
+# Sender email (must be verified in Resend)
+EMAIL_FROM = os.getenv(
+    "EMAIL_FROM",
+    "Orbal Digital Academy <noreply@yourdomain.com>"
+)
 
 
 def send_verification_email(
     recipient_email: str,
     recipient_name: str,
-    raw_token: str,
-) -> None:
+    verification_url: str,
+) -> bool:
     """
-    Send the verification email.
+    Sends an email verification message to a newly registered user.
 
-    This function runs as a FastAPI background task after registration.
+    Args:
+        recipient_email: User's email address.
+        recipient_name: User's full name.
+        verification_url: Email verification link.
+
+    Returns:
+        True if successful, False otherwise.
     """
 
-    if not SMTP_HOST:
-        logger.error(
-            "Verification email was not sent because SMTP_HOST is missing."
-        )
-        return
+    try:
+        response = resend.Emails.send(
+            {
+                "from": EMAIL_FROM,
+                "to": [recipient_email],
+                "subject": "Verify Your Email Address",
+                "html": f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Email Verification</title>
+                </head>
+                <body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                            <td align="center">
 
-    verification_url = _build_verification_url(raw_token)
+                                <table width="600" cellpadding="40" cellspacing="0"
+                                    style="background:#ffffff;border-radius:8px;margin-top:30px;">
 
-    message = EmailMessage()
+                                    <tr>
+                                        <td align="center">
 
-    message["Subject"] = "Verify your Orbal Digital Academy account"
-    message["From"] = f"{EMAIL_FROM_NAME} <{EMAIL_FROM}>"
-    message["To"] = recipient_email
+                                            <h1 style="color:#0B5ED7;">
+                                                Orbal Digital Academy
+                                            </h1>
 
-    text_content = f"""
+                                            <h2 style="color:#333;">
+                                                Verify Your Email Address
+                                            </h2>
+
+                                            <p style="font-size:16px;color:#555;">
+                                                Hello <strong>{recipient_name}</strong>,
+                                            </p>
+
+                                            <p style="font-size:16px;color:#555;line-height:1.6;">
+                                                Thank you for registering with
+                                                <strong>Orbal Digital Academy</strong>.
+                                            </p>
+
+                                            <p style="font-size:16px;color:#555;line-height:1.6;">
+                                                Please verify your email address by clicking
+                                                the button below.
+                                            </p>
+
+                                            <p style="margin:35px 0;">
+                                                <a href="{verification_url}"
+                                                    style="
+                                                        background:#0B5ED7;
+                                                        color:#ffffff;
+                                                        padding:14px 28px;
+                                                        text-decoration:none;
+                                                        border-radius:6px;
+                                                        display:inline-block;
+                                                        font-weight:bold;
+                                                    ">
+                                                    Verify Email
+                                                </a>
+                                            </p>
+
+                                            <p style="font-size:14px;color:#777;">
+                                                If the button doesn't work,
+                                                copy and paste the following link into your browser:
+                                            </p>
+
+                                            <p style="word-break:break-all;">
+                                                <a href="{verification_url}">
+                                                    {verification_url}
+                                                </a>
+                                            </p>
+
+                                            <hr style="margin:30px 0;">
+
+                                            <p style="font-size:13px;color:#999;">
+                                                If you did not create an account,
+                                                you can safely ignore this email.
+                                            </p>
+
+                                            <p style="font-size:13px;color:#999;">
+                                                &copy; {__import__("datetime").datetime.now().year}
+                                                Orbal Digital Academy. All rights reserved.
+                                            </p>
+
+                                        </td>
+                                    </tr>
+
+                                </table>
+
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>
+                """,
+                "text": f"""
 Hello {recipient_name},
 
 Thank you for registering with Orbal Digital Academy.
 
-Please verify your email address by opening the link below:
+Please verify your email by visiting the link below:
 
 {verification_url}
 
-This verification link will expire in {EMAIL_VERIFICATION_EXPIRE_HOURS} hours.
-
-If you did not create this account, you can safely ignore this email.
+If you did not create this account, you can ignore this email.
 
 Orbal Digital Academy
-""".strip()
-
-    html_content = f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-</head>
-
-<body
-    style="
-        margin: 0;
-        padding: 0;
-        background-color: #f3f4f6;
-        font-family: Arial, Helvetica, sans-serif;
-    "
->
-    <div style="padding: 32px 16px;">
-        <div
-            style="
-                max-width: 600px;
-                margin: 0 auto;
-                background-color: #ffffff;
-                border-radius: 12px;
-                overflow: hidden;
-                box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-            "
-        >
-            <div
-                style="
-                    background-color: #153e2e;
-                    color: #ffffff;
-                    padding: 24px;
-                    text-align: center;
-                "
-            >
-                <h1 style="margin: 0; font-size: 24px;">
-                    Orbal Digital Academy
-                </h1>
-            </div>
-
-            <div style="padding: 32px;">
-                <h2 style="color: #111827;">
-                    Verify your email address
-                </h2>
-
-                <p style="color: #4b5563; line-height: 1.7;">
-                    Hello {recipient_name},
-                </p>
-
-                <p style="color: #4b5563; line-height: 1.7;">
-                    Thank you for registering with Orbal Digital Academy.
-                    Click the button below to verify your email address.
-                </p>
-
-                <div style="text-align: center; margin: 32px 0;">
-                    <a
-                        href="{verification_url}"
-                        style="
-                            display: inline-block;
-                            background-color: #d4a017;
-                            color: #ffffff;
-                            text-decoration: none;
-                            padding: 14px 28px;
-                            border-radius: 8px;
-                            font-weight: bold;
-                        "
-                    >
-                        Verify Email Address
-                    </a>
-                </div>
-
-                <p style="color: #4b5563; line-height: 1.7;">
-                    This link will expire in
-                    {EMAIL_VERIFICATION_EXPIRE_HOURS} hours.
-                </p>
-
-                <p style="color: #6b7280; font-size: 14px;">
-                    If the button does not work, copy and paste this link
-                    into your browser:
-                </p>
-
-                <p
-                    style="
-                        color: #2563eb;
-                        font-size: 13px;
-                        word-break: break-all;
-                    "
-                >
-                    {verification_url}
-                </p>
-
-                <p style="color: #6b7280; font-size: 14px;">
-                    If you did not create this account, you can safely
-                    ignore this email.
-                </p>
-            </div>
-        </div>
-    </div>
-</body>
-</html>
-""".strip()
-
-    message.set_content(text_content)
-    message.add_alternative(html_content, subtype="html")
-
-    try:
-        if SMTP_PORT == 465:
-            with smtplib.SMTP_SSL(
-                SMTP_HOST,
-                SMTP_PORT,
-                timeout=30,
-            ) as smtp:
-                if SMTP_USERNAME and SMTP_PASSWORD:
-                    smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
-
-                smtp.send_message(message)
-
-        else:
-            with smtplib.SMTP(
-                SMTP_HOST,
-                SMTP_PORT,
-                timeout=30,
-            ) as smtp:
-                smtp.ehlo()
-                smtp.starttls()
-                smtp.ehlo()
-
-                if SMTP_USERNAME and SMTP_PASSWORD:
-                    smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
-
-                smtp.send_message(message)
-
-        logger.info(
-            "Verification email sent successfully to %s",
-            recipient_email,
+""",
+            }
         )
 
-    except Exception:
-        logger.exception(
-            "Failed to send verification email to %s",
-            recipient_email,
-        )
+        print("Verification email sent successfully.")
+        print(response)
 
+        return True
+
+    except Exception as e:
+        print(f"Failed to send verification email: {e}")
+        return False
 
 # -------------------------------------------------------------------
 # Register

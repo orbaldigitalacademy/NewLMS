@@ -28,3 +28,4 @@ apscheduler
 reportlab
 httpx
 cloudinary
+resend

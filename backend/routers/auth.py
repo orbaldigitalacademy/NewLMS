@@ -9,6 +9,8 @@ import secrets
 import smtplib
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+from urllib.parse import urlencode
+
 import resend
 
 
@@ -66,8 +68,13 @@ class MessageResponse(BaseModel):
     message: str
 
 
+class RegisterRequest(UserRegister):
+    next: str | None = None
+
+
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
+    next: str | None = None
 
 
 # -------------------------------------------------------------------
@@ -132,11 +139,33 @@ def _create_verification_token() -> tuple[str, str, datetime]:
     return raw_token, hashed_token, expires_at
 
 
-def _build_verification_url(raw_token: str) -> str:
-    """
-    Build the frontend email-verification URL.
-    """
-    return f"{FRONTEND_URL}/verify-email?token={raw_token}"
+def _safe_next_path(next_path: str | None) -> str:
+    """Return a safe internal frontend path for post-verification redirect."""
+    if not next_path:
+        return "/dashboard"
+
+    next_path = next_path.strip()
+
+    # Permit only internal paths such as /courses/course-slug.
+    # Reject protocol-relative URLs such as //malicious-site.com.
+    if not next_path.startswith("/") or next_path.startswith("//"):
+        return "/dashboard"
+
+    return next_path
+
+
+def _build_verification_url(
+    raw_token: str,
+    next_path: str | None = None,
+) -> str:
+    """Build the frontend verification URL with a safe return path."""
+    query = urlencode(
+        {
+            "token": raw_token,
+            "next": _safe_next_path(next_path),
+        }
+    )
+    return f"{FRONTEND_URL}/verify-email?{query}"
 
 # -------------------------------------------------------------------
 # Email sender
@@ -312,7 +341,7 @@ Orbal Digital Academy
     status_code=status.HTTP_201_CREATED,
 )
 async def register(
-    data: UserRegister,
+    data: RegisterRequest,
     background_tasks: BackgroundTasks,
 ):
     email = data.email.strip().lower()
@@ -355,7 +384,7 @@ async def register(
 
     await db.users.insert_one(user.to_mongo())
 
-    verification_url = _build_verification_url(raw_token)
+    verification_url = _build_verification_url(raw_token, data.next)
 
     background_tasks.add_task(
         send_verification_email,
@@ -376,9 +405,6 @@ async def register(
 # -------------------------------------------------------------------
 # Verify email
 # -------------------------------------------------------------------
-
-from datetime import datetime, timezone
-from fastapi import HTTPException, status
 
 @router.get("/verify-email")
 async def verify_email(token: str):
@@ -504,7 +530,7 @@ async def resend_verification(
         },
     )
 
-    verification_url = _build_verification_url(raw_token)
+    verification_url = _build_verification_url(raw_token, data.next)
 
     background_tasks.add_task(
         send_verification_email,

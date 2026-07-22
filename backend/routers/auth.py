@@ -138,7 +138,170 @@ def _build_verification_url(raw_token: str) -> str:
     """
     return f"{FRONTEND_URL}/verify-email?token={raw_token}"
 
+# -------------------------------------------------------------------
+# Email sender
+# -------------------------------------------------------------------
 
+def send_verification_email(
+    recipient_email: str,
+    recipient_name: str,
+    verification_url: str,
+) -> bool:
+    """
+    Send an email-verification link using Resend.
+    """
+    try:
+        response = resend.Emails.send(
+            {
+                "from": EMAIL_FROM,
+                "to": [recipient_email],
+                "subject": "Verify Your Email Address",
+                "html": f"""
+                <!DOCTYPE html>
+                <html>
+                <body style="
+                    margin: 0;
+                    padding: 0;
+                    background: #f4f4f4;
+                    font-family: Arial, sans-serif;
+                ">
+                    <table
+                        width="100%"
+                        cellpadding="0"
+                        cellspacing="0"
+                    >
+                        <tr>
+                            <td align="center">
+                                <table
+                                    width="600"
+                                    cellpadding="40"
+                                    cellspacing="0"
+                                    style="
+                                        background: #ffffff;
+                                        border-radius: 8px;
+                                        margin-top: 30px;
+                                    "
+                                >
+                                    <tr>
+                                        <td align="center">
+                                            <h1 style="color: #0B5ED7;">
+                                                Orbal Digital Academy
+                                            </h1>
+
+                                            <h2 style="color: #333333;">
+                                                Verify Your Email Address
+                                            </h2>
+
+                                            <p style="
+                                                font-size: 16px;
+                                                color: #555555;
+                                            ">
+                                                Hello
+                                                <strong>
+                                                    {recipient_name}
+                                                </strong>,
+                                            </p>
+
+                                            <p style="
+                                                font-size: 16px;
+                                                color: #555555;
+                                                line-height: 1.6;
+                                            ">
+                                                Thank you for registering
+                                                with Orbal Digital Academy.
+                                            </p>
+
+                                            <p style="
+                                                font-size: 16px;
+                                                color: #555555;
+                                                line-height: 1.6;
+                                            ">
+                                                Click the button below to
+                                                verify your email address.
+                                            </p>
+
+                                            <p style="margin: 35px 0;">
+                                                <a
+                                                    href="{verification_url}"
+                                                    style="
+                                                        background: #0B5ED7;
+                                                        color: #ffffff;
+                                                        padding: 14px 28px;
+                                                        text-decoration: none;
+                                                        border-radius: 6px;
+                                                        display: inline-block;
+                                                        font-weight: bold;
+                                                    "
+                                                >
+                                                    Verify Email
+                                                </a>
+                                            </p>
+
+                                            <p style="
+                                                font-size: 14px;
+                                                color: #777777;
+                                            ">
+                                                If the button does not work,
+                                                copy and paste this link into
+                                                your browser:
+                                            </p>
+
+                                            <p style="word-break: break-all;">
+                                                <a href="{verification_url}">
+                                                    {verification_url}
+                                                </a>
+                                            </p>
+
+                                            <hr style="margin: 30px 0;">
+
+                                            <p style="
+                                                font-size: 13px;
+                                                color: #999999;
+                                            ">
+                                                If you did not create this
+                                                account, you can ignore this
+                                                email.
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>
+                """,
+                "text": f"""
+Hello {recipient_name},
+
+Thank you for registering with Orbal Digital Academy.
+
+Verify your email address using this link:
+
+{verification_url}
+
+If you did not create this account, you can ignore this email.
+
+Orbal Digital Academy
+                """,
+            }
+        )
+
+        logger.info(
+            "Verification email sent to %s. Response: %s",
+            recipient_email,
+            response,
+        )
+
+        return True
+
+    except Exception:
+        logger.exception(
+            "Failed to send verification email to %s",
+            recipient_email,
+        )
+        return False
+        
 # -------------------------------------------------------------------
 # Register
 # -------------------------------------------------------------------

@@ -416,7 +416,7 @@ async def verify_email(token: str):
 
     # Create the token only after the database has been updated
     access_token = create_access_token(
-        data={
+        {
             "sub": str(user["_id"]),
             "email": user["email"],
             "role": user.get("role", "student"),

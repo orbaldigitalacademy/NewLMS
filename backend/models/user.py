@@ -1,4 +1,5 @@
 """User model + auth request/response schemas."""
+import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional

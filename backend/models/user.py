@@ -47,7 +47,7 @@ class UserPublic(BaseModel):
 
     is_verified: bool = False
     verified_at: Optional[datetime] = None
-    created_at: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class UserRegister(BaseModel):

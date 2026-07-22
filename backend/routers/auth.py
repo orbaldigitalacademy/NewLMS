@@ -377,88 +377,64 @@ async def register(
 # Verify email
 # -------------------------------------------------------------------
 
-@router.get(
-    "/verify-email",
-    response_model=MessageResponse,
-)
-async def verify_email(
-    token: str = Query(
-        ...,
-        min_length=20,
-        description="Email verification token",
-    ),
-):
-    hashed_token = _hash_verification_token(token)
-    now = _utc_now()
+from datetime import datetime, timezone
+from fastapi import HTTPException, status
 
-    document = await db.users.find_one(
-        {
-            "verification_token_hash": hashed_token,
-            "is_verified": False,
-        }
+@router.get("/verify-email")
+async def verify_email(token: str):
+    token_hash = _hash_verification_token(token)
+
+    user = await db.users.find_one(
+        {"verification_token_hash": token_hash}
     )
 
-    if not document:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or already used verification link",
-        )
-
-    user = User.from_mongo(document)
-
-    if not user.verification_token_expires_at:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid verification link",
-        )
-
-    expires_at = user.verification_token_expires_at
-
-    # MongoDB may return a timezone-naive datetime.
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-
-    if expires_at < now:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "This verification link has expired. Please request "
-                "a new verification email."
-            ),
+            detail="Invalid or expired verification link.",
         )
 
     result = await db.users.update_one(
-        {
-            "id": user.id,
-            "verification_token_hash": hashed_token,
-            "is_verified": False,
-        },
+        {"_id": user["_id"]},
         {
             "$set": {
                 "is_verified": True,
-                "verified_at": now,
+                "verified_at": datetime.now(timezone.utc),
             },
             "$unset": {
                 "verification_token_hash": "",
                 "verification_token_expires_at": "",
-                "verification_sent_at": "",
             },
         },
     )
 
-    if result.modified_count == 0:
+    if result.modified_count == 0 and not user.get("is_verified", False):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Verification link could not be processed",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Email verification could not be completed.",
         )
 
-    return MessageResponse(
-        message=(
-            "Your email address has been verified successfully. "
-            "You can now log in."
-        )
+    # Create the token only after the database has been updated
+    access_token = create_access_token(
+        data={
+            "sub": str(user["_id"]),
+            "email": user["email"],
+            "role": user.get("role", "student"),
+        }
     )
 
+    return {
+        "message": "Email verified successfully.",
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": str(user["_id"]),
+            "email": user["email"],
+            "name": user.get("name"),
+            "role": user.get("role", "student"),
+            "is_verified": True,
+        },
+    }
 
 # -------------------------------------------------------------------
 # Resend verification email

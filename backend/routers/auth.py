@@ -101,160 +101,43 @@ def _role_value(user: User) -> str:
 
 def _hash_verification_token(token: str) -> str:
     """
-    Hash the verification token before saving it in MongoDB.
+    Hash a verification token before saving it in MongoDB.
 
     The raw token is sent to the user, but only its hash is stored.
     """
-
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-# Configure Resend
-resend.api_key = os.getenv("RESEND_API_KEY")
-
-# Sender email (must be verified in Resend)
-EMAIL_FROM = os.getenv(
-    "EMAIL_FROM",
-    "Orbal Digital Academy <noreply@yourdomain.com>"
-)
-
-
-def send_verification_email(
-    recipient_email: str,
-    recipient_name: str,
-    verification_url: str,
-) -> bool:
+def _create_verification_token() -> tuple[str, str, datetime]:
     """
-    Sends an email verification message to a newly registered user.
-
-    Args:
-        recipient_email: User's email address.
-        recipient_name: User's full name.
-        verification_url: Email verification link.
+    Generate a secure verification token.
 
     Returns:
-        True if successful, False otherwise.
+        raw_token:
+            Sent to the user's email inside the verification URL.
+
+        hashed_token:
+            Stored in MongoDB instead of the raw token.
+
+        expires_at:
+            UTC date and time when the verification link expires.
     """
+    raw_token = secrets.token_urlsafe(32)
+    hashed_token = _hash_verification_token(raw_token)
 
-    try:
-        response = resend.Emails.send(
-            {
-                "from": EMAIL_FROM,
-                "to": [recipient_email],
-                "subject": "Verify Your Email Address",
-                "html": f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <title>Email Verification</title>
-                </head>
-                <body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
-                    <table width="100%" cellpadding="0" cellspacing="0">
-                        <tr>
-                            <td align="center">
+    expires_at = _utc_now() + timedelta(
+        hours=EMAIL_VERIFICATION_EXPIRE_HOURS
+    )
 
-                                <table width="600" cellpadding="40" cellspacing="0"
-                                    style="background:#ffffff;border-radius:8px;margin-top:30px;">
+    return raw_token, hashed_token, expires_at
 
-                                    <tr>
-                                        <td align="center">
 
-                                            <h1 style="color:#0B5ED7;">
-                                                Orbal Digital Academy
-                                            </h1>
+def _build_verification_url(raw_token: str) -> str:
+    """
+    Build the frontend email-verification URL.
+    """
+    return f"{FRONTEND_URL}/verify-email?token={raw_token}"
 
-                                            <h2 style="color:#333;">
-                                                Verify Your Email Address
-                                            </h2>
-
-                                            <p style="font-size:16px;color:#555;">
-                                                Hello <strong>{recipient_name}</strong>,
-                                            </p>
-
-                                            <p style="font-size:16px;color:#555;line-height:1.6;">
-                                                Thank you for registering with
-                                                <strong>Orbal Digital Academy</strong>.
-                                            </p>
-
-                                            <p style="font-size:16px;color:#555;line-height:1.6;">
-                                                Please verify your email address by clicking
-                                                the button below.
-                                            </p>
-
-                                            <p style="margin:35px 0;">
-                                                <a href="{verification_url}"
-                                                    style="
-                                                        background:#0B5ED7;
-                                                        color:#ffffff;
-                                                        padding:14px 28px;
-                                                        text-decoration:none;
-                                                        border-radius:6px;
-                                                        display:inline-block;
-                                                        font-weight:bold;
-                                                    ">
-                                                    Verify Email
-                                                </a>
-                                            </p>
-
-                                            <p style="font-size:14px;color:#777;">
-                                                If the button doesn't work,
-                                                copy and paste the following link into your browser:
-                                            </p>
-
-                                            <p style="word-break:break-all;">
-                                                <a href="{verification_url}">
-                                                    {verification_url}
-                                                </a>
-                                            </p>
-
-                                            <hr style="margin:30px 0;">
-
-                                            <p style="font-size:13px;color:#999;">
-                                                If you did not create an account,
-                                                you can safely ignore this email.
-                                            </p>
-
-                                            <p style="font-size:13px;color:#999;">
-                                                &copy; {__import__("datetime").datetime.now().year}
-                                                Orbal Digital Academy. All rights reserved.
-                                            </p>
-
-                                        </td>
-                                    </tr>
-
-                                </table>
-
-                            </td>
-                        </tr>
-                    </table>
-                </body>
-                </html>
-                """,
-                "text": f"""
-Hello {recipient_name},
-
-Thank you for registering with Orbal Digital Academy.
-
-Please verify your email by visiting the link below:
-
-{verification_url}
-
-If you did not create this account, you can ignore this email.
-
-Orbal Digital Academy
-""",
-            }
-        )
-
-        print("Verification email sent successfully.")
-        print(response)
-
-        return True
-
-    except Exception as e:
-        print(f"Failed to send verification email: {e}")
-        return False
 
 # -------------------------------------------------------------------
 # Register
@@ -309,11 +192,13 @@ async def register(
 
     await db.users.insert_one(user.to_mongo())
 
+    verification_url = _build_verification_url(raw_token)
+
     background_tasks.add_task(
         send_verification_email,
         user.email,
         user.name,
-        raw_token,
+        verification_url,
     )
 
     return MessageResponse(
@@ -366,6 +251,7 @@ async def verify_email(
 
     expires_at = user.verification_token_expires_at
 
+    # MongoDB may return a timezone-naive datetime.
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
 
@@ -392,6 +278,7 @@ async def verify_email(
             "$unset": {
                 "verification_token_hash": "",
                 "verification_token_expires_at": "",
+                "verification_sent_at": "",
             },
         },
     )
@@ -426,8 +313,8 @@ async def resend_verification(
 
     document = await db.users.find_one({"email": email})
 
-    # Return a generic response so attackers cannot easily discover
-    # whether a particular email is registered.
+    # Use a generic message so attackers cannot determine whether
+    # an email address is registered.
     generic_message = (
         "If an unverified account exists for this email address, "
         "a new verification link has been sent."
@@ -450,7 +337,9 @@ async def resend_verification(
         if sent_at.tzinfo is None:
             sent_at = sent_at.replace(tzinfo=timezone.utc)
 
-        seconds_since_last_email = (now - sent_at).total_seconds()
+        seconds_since_last_email = (
+            now - sent_at
+        ).total_seconds()
 
         if seconds_since_last_email < 60:
             raise HTTPException(
@@ -476,11 +365,13 @@ async def resend_verification(
         },
     )
 
+    verification_url = _build_verification_url(raw_token)
+
     background_tasks.add_task(
         send_verification_email,
         user.email,
         user.name,
-        raw_token,
+        verification_url,
     )
 
     return MessageResponse(message=generic_message)

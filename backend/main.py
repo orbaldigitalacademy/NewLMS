@@ -50,7 +50,7 @@ from routers.fx import fx_router
 async def seed_data():
     """Seed an admin and a few demo courses on first run."""
     # Seed admin
-    admin_email = "superadmin@gmail.com"
+    admin_email = "moseskor@gmail.com"
     existing_admin = await db.users.find_one({"email": admin_email})
     if not existing_admin:
         admin = User(
@@ -335,11 +335,30 @@ async def seed_data():
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # --------------------
     # Startup
+    # --------------------
     await seed_data()
+
+    # Create MongoDB indexes
+    await db.users.create_index(
+        "email",
+        unique=True,
+    )
+
+    await db.users.create_index(
+        "verification_token_hash",
+        unique=True,
+        sparse=True,
+    )
+
     start_scheduler()
+
     yield
+
+    # --------------------
     # Shutdown
+    # --------------------
     stop_scheduler()
     client.close()
 

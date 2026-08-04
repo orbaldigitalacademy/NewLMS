@@ -26,13 +26,31 @@ async def _create_enrollment(user: User, course: Course) -> Enrollment:
     existing = await db.enrollments.find_one(
         {"user_id": user.id, "course_id": course.id}
     )
+
     if existing:
         return Enrollment.from_mongo(existing)
-    enroll = Enrollment(user_id=user.id, course_id=course.id)
-    await db.enrollments.insert_one(enroll.to_mongo())
-    await db.courses.update_one(
-        {"_id": course.id}, {"$inc": {"enrollment_count": 1}}
+
+    enroll = Enrollment(
+        user_id=user.id,
+        course_id=course.id,
+
+        course_title=course.title,
+        course_image=getattr(course, "image_url", None),
+
+        payment_status="approved",
+        access_granted=True,
+
+        completed_lessons=[],
+        progress=0.0,
     )
+
+    await db.enrollments.insert_one(enroll.to_mongo())
+
+    await db.courses.update_one(
+        {"_id": course.id},
+        {"$inc": {"enrollment_count": 1}}
+    )
+
     return enroll
 
 

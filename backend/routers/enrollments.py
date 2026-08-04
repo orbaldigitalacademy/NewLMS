@@ -27,19 +27,29 @@ async def _create_enrollment(user: User, course: Course) -> Enrollment:
         {"user_id": user.id, "course_id": course.id}
     )
 
+    # If already enrolled, make sure access is granted
     if existing:
-        return Enrollment.from_mongo(existing)
+        await db.enrollments.update_one(
+            {"_id": existing["_id"]},
+            {
+                "$set": {
+                    "payment_status": "approved",
+                    "access_granted": True,
+                }
+            },
+        )
 
+        updated = await db.enrollments.find_one({"_id": existing["_id"]})
+        return Enrollment.from_mongo(updated)
+
+    # Create a new enrollment
     enroll = Enrollment(
         user_id=user.id,
         course_id=course.id,
-
         course_title=course.title,
         course_image=getattr(course, "image_url", None),
-
         payment_status="approved",
         access_granted=True,
-
         completed_lessons=[],
         progress=0.0,
     )
@@ -52,7 +62,6 @@ async def _create_enrollment(user: User, course: Course) -> Enrollment:
     )
 
     return enroll
-
 
 @router.post("/free", response_model=Enrollment)
 async def enroll_free(data: EnrollRequest, user: User = Depends(get_current_user)):

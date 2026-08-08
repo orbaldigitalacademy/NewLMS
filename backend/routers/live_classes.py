@@ -172,7 +172,7 @@ async def get_course_live_classes(
     current_user=Depends(get_current_user)
 ):
     enrollment = await db.enrollments.find_one({
-        "user_id": current_user["id"],
+        "user_id": current_user.id,
         "course_id": course_id,
         "access_granted": True
     })
@@ -254,7 +254,7 @@ async def join_live_class(
         )
 
     enrollment = await db.enrollments.find_one({
-        "user_id": current_user["id"],
+        "user_id": current_user.id,
         "course_id": live_class["course_id"],
         "access_granted": True
     })
@@ -278,7 +278,7 @@ async def join_live_class(
 
     existing_attendance = await db.attendance.find_one({
         "class_id": class_id,
-        "user_id": current_user["id"],
+        "user_id": current_user.id,
         "left_at": {"$exists": False}
     })
 
@@ -286,7 +286,7 @@ async def join_live_class(
         await db.attendance.insert_one({
             "id": str(uuid.uuid4()),
             "class_id": class_id,
-            "user_id": current_user["id"],
+            "user_id": current_user.id,
             "joined_at": datetime.now(
                 timezone.utc
             ).isoformat()
@@ -309,7 +309,7 @@ async def leave_live_class(
 ):
     attendance = await db.attendance.find_one({
         "class_id": class_id,
-        "user_id": current_user["id"],
+        "user_id": current_user.id,
         "left_at": {"$exists": False}
     })
 

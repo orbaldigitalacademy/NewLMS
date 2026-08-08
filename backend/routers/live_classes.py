@@ -166,7 +166,7 @@ async def delete_live_class(
 # GET CLASSES FOR COURSE
 # ==================================================
 
-@router.get("/courses/{course_id}")
+@router.get("/course/{course_id}")
 async def get_course_live_classes(
     course_id: str,
     current_user=Depends(get_current_user)

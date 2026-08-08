@@ -257,12 +257,24 @@ class CourseUpdate(BaseModel):
 # ---------------------------------------------------------------------------
 # Enrollment — unchanged from your original.
 # ---------------------------------------------------------------------------
-
 class Enrollment(BaseDocument):
     user_id: str
     course_id: str
-    progress: float = 0.0  # 0-100
+
+    # Course snapshot
+    course_title: Optional[str] = None
+    course_image: Optional[str] = None
+
+    # Payment / access control
+    payment_id: Optional[str] = None
+    payment_status: str = "pending"
+    access_granted: bool = False
+
+    # Learning progress
+    progress: float = 0.0
     completed_lessons: List[str] = Field(default_factory=list)
+
+    # Completion / certificate
     is_completed: bool = False
     completed_at: Optional[str] = None
     certificate_url: Optional[str] = None

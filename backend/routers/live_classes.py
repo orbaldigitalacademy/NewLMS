@@ -173,14 +173,24 @@ async def get_course_live_classes(
 ):
     enrollment = await db.enrollments.find_one({
         "user_id": current_user.id,
-        "course_id": course_id,
-        "access_granted": True
+        "course_id": course_id
     })
+
+    print("LIVE CLASS ACCESS CHECK")
+    print("USER ID:", current_user.id)
+    print("COURSE ID:", course_id)
+    print("ENROLLMENT:", enrollment)
 
     if not enrollment:
         raise HTTPException(
             status_code=403,
-            detail="No access"
+            detail="You are not enrolled in this course"
+        )
+
+    if enrollment.get("access_granted") is not True:
+        raise HTTPException(
+            status_code=403,
+            detail="Course access has not been granted"
         )
 
     classes = await db.live_classes.find(
@@ -201,7 +211,6 @@ async def get_course_live_classes(
         )
 
     return classes
-
 
 # ==================================================
 # GET SINGLE LIVE CLASS

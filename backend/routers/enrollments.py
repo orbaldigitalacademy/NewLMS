@@ -16,6 +16,7 @@ router = APIRouter(prefix="/enrollments", tags=["enrollments"])
 
 class EnrollRequest(BaseModel):
     course_id: str
+    completed: bool = True
 
 
 class ProgressRequest(BaseModel):
@@ -118,45 +119,96 @@ async def check_course_access(
     
 @router.post("/progress", response_model=Enrollment)
 async def update_progress(
-    data: ProgressRequest, user: User = Depends(get_current_user)
+    data: ProgressRequest,
+    user: User = Depends(get_current_user)
 ):
+    # Find the lesson
     lesson = await db.lessons.find_one({"_id": data.lesson_id})
+
     if not lesson:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lesson not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lesson not found"
+        )
 
     course_id = lesson["course_id"]
-    enrollment_doc = await db.enrollments.find_one(
-        {"user_id": user.id, "course_id": course_id}
-    )
-    if not enrollment_doc:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not enrolled")
-    enrollment = Enrollment.from_mongo(enrollment_doc)
-    if data.lesson_id not in enrollment.completed_lessons:
-        enrollment.completed_lessons.append(data.lesson_id)
 
-    total_lessons = await db.lessons.count_documents({"course_id": course_id})
+    # Find student's enrollment for this course
+    enrollment_doc = await db.enrollments.find_one(
+        {
+            "user_id": user.id,
+            "course_id": course_id
+        }
+    )
+
+    if not enrollment_doc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enrolled in this course"
+        )
+
+    # Make sure the student has access
+    if not enrollment_doc.get("access_granted", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this course"
+        )
+
+    enrollment = Enrollment.from_mongo(enrollment_doc)
+
+    # Mark/unmark lesson
+    completed_lessons = list(enrollment.completed_lessons or [])
+
+    if data.completed:
+        if data.lesson_id not in completed_lessons:
+            completed_lessons.append(data.lesson_id)
+    else:
+        if data.lesson_id in completed_lessons:
+            completed_lessons.remove(data.lesson_id)
+
+    # Calculate progress
+    total_lessons = await db.lessons.count_documents(
+        {"course_id": course_id}
+    )
+
     progress = (
-        (len(enrollment.completed_lessons) / total_lessons) * 100
-        if total_lessons
+        (len(completed_lessons) / total_lessons) * 100
+        if total_lessons > 0
         else 0
     )
-    is_completed = total_lessons > 0 and len(enrollment.completed_lessons) >= total_lessons
+
+    is_completed = (
+        total_lessons > 0
+        and len(completed_lessons) >= total_lessons
+    )
 
     update = {
-        "completed_lessons": enrollment.completed_lessons,
+        "completed_lessons": completed_lessons,
         "progress": round(progress, 2),
         "is_completed": is_completed,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+    # Course has just been completed
     if is_completed and not enrollment.is_completed:
         update["completed_at"] = datetime.now(timezone.utc).isoformat()
 
-    await db.enrollments.update_one(
-        {"_id": enrollment.id}, {"$set": update}
-    )
-    new_doc = await db.enrollments.find_one({"_id": enrollment.id})
-    return Enrollment.from_mongo(new_doc)
+    # If course was previously completed but a lesson is unchecked,
+    # reset the completion date.
+    elif not is_completed and enrollment.is_completed:
+        update["completed_at"] = None
 
+    await db.enrollments.update_one(
+        {"_id": enrollment.id},
+        {"$set": update}
+    )
+
+    # Return updated enrollment
+    new_doc = await db.enrollments.find_one(
+        {"_id": enrollment.id}
+    )
+
+    return Enrollment.from_mongo(new_doc)
 
 @router.get("/certificate/{course_id}")
 async def download_certificate(course_id: str, user: User = Depends(get_current_user)):

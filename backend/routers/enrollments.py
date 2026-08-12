@@ -89,7 +89,33 @@ async def is_enrolled(course_id: str, user: User = Depends(get_current_user)):
     )
     return {"enrolled": bool(doc), "enrollment": Enrollment.from_mongo(doc) if doc else None}
 
+@router.get("/check-access/{course_id}")
+async def check_course_access(
+    course_id: str,
+    user: User = Depends(get_current_user)
+):
+    enrollment_doc = await db.enrollments.find_one(
+        {
+            "user_id": user.id,
+            "course_id": course_id
+        }
+    )
 
+    if not enrollment_doc:
+        return {
+            "has_access": False,
+            "enrolled": False,
+            "enrollment": None
+        }
+
+    enrollment = Enrollment.from_mongo(enrollment_doc)
+
+    return {
+        "has_access": bool(enrollment.access_granted),
+        "enrolled": True,
+        "enrollment": enrollment
+    }
+    
 @router.post("/progress", response_model=Enrollment)
 async def update_progress(
     data: ProgressRequest, user: User = Depends(get_current_user)

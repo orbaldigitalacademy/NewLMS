@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from auth import get_current_user, get_optional_user, require_admin
-from cloudinary_service import delete_asset
+from services.cloudinary_service import delete_asset
 from database import db
 from models.lesson import Lesson, LessonCreate, LessonUpdate, ReorderItem
 from models.user import User

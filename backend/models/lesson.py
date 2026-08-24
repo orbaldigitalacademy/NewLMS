@@ -2,6 +2,9 @@ from typing import Optional, List
 from pydantic import BaseModel, Field
 from .base import BaseDocument
 
+class ReorderItem(BaseModel):
+    lesson_id: str
+    order: int = Field(..., ge=0)
 
 class LessonResource(BaseModel):
     name: str

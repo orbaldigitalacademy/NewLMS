@@ -1,7 +1,8 @@
 """Enrollment model - joins user <-> course."""
 
 from typing import List, Optional
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
 
 from .base import BaseDocument
 
@@ -20,7 +21,7 @@ class Enrollment(BaseDocument):
 
     # Learning progress
     progress: float = 0.0
-    completed_lessons: List[str] = []
+    completed_lessons: List[str] = Field(default_factory=list)
     is_completed: bool = False
     completed_at: Optional[str] = None
 

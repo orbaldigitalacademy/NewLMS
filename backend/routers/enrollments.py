@@ -21,6 +21,7 @@ class EnrollRequest(BaseModel):
 
 class ProgressRequest(BaseModel):
     lesson_id: str
+    completed: bool = False
 
 
 async def _create_enrollment(user: User, course: Course) -> Enrollment:

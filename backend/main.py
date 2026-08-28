@@ -36,6 +36,7 @@ from models.testimonial import Testimonial  # noqa: E402
 from routers import auth as auth_router  # noqa: E402
 from routers import courses as courses_router  # noqa: E402
 from routers import lessons as lessons_router  # noqa: E402
+from routers import quiz as quiz_router
 from routers import enrollments as enrollments_router  # noqa: E402
 from routers import payments as payments_router  # noqa: E402
 from routers import testimonials as testimonials_router  # noqa: E402
@@ -45,6 +46,7 @@ from routers import admin as admin_router  # noqa: E402
 from routers.payments import router as payments_router
 from routers import profile
 from routers.fx import fx_router
+
 
 
 async def seed_data():
@@ -402,6 +404,7 @@ app.add_middleware(
 api_router.include_router(auth_router.router)
 api_router.include_router(courses_router.router)
 api_router.include_router(lessons_router.router)
+api_router.include_router(quiz_router.router)
 api_router.include_router(enrollments_router.router)
 api_router.include_router(payments_router)
 api_router.include_router(testimonials_router.router)

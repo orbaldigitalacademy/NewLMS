@@ -353,6 +353,31 @@ async def lifespan(_app: FastAPI):
         unique=True,
         sparse=True,
     )
+    await db.quizzes.create_index(
+    "course_id"
+    )
+    
+    await db.quizzes.create_index(
+        "lesson_id"
+    )
+    
+    await db.quizzes.create_index(
+        [
+            ("lesson_id", 1),
+            ("quiz_type", 1),
+        ]
+    )
+    
+    await db.quiz_attempts.create_index(
+        [
+            ("quiz_id", 1),
+            ("user_id", 1),
+        ]
+    )
+    
+    await db.quiz_attempts.create_index(
+        "user_id"
+    )
 
     start_scheduler()
 

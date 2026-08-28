@@ -61,7 +61,7 @@ async def create_lesson(data: LessonCreate, _: User = Depends(require_admin)):
 async def reorder_lessons(items: List[ReorderItem], _: User = Depends(require_admin)):
     for item in items:
         await db.lessons.update_one(
-            {"_id": item.id},
+            {"_id": item.lesson_id},
             {"$set": {"order": item.order, "updated_at": datetime.now(timezone.utc).isoformat()}},
         )
     return {"updated": len(items)}

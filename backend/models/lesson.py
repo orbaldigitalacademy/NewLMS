@@ -19,6 +19,7 @@ class Lesson(BaseDocument):
     order: int = 0
     content_text: Optional[str] = None  # rich text or markdown
     video_url: Optional[str] = None
+    video_public_id: Optional[str] = None
     duration_minutes: int = 0
     resources: List[LessonResource] = Field(default_factory=list)
     is_preview: bool = False
@@ -31,6 +32,7 @@ class LessonCreate(BaseModel):
     order: int = 0
     content_text: Optional[str] = None
     video_url: Optional[str] = None
+    video_public_id: Optional[str] = None
     duration_minutes: int = 0
     resources: List[LessonResource] = Field(default_factory=list)
     is_preview: bool = False
@@ -42,6 +44,7 @@ class LessonUpdate(BaseModel):
     order: Optional[int] = None
     content_text: Optional[str] = None
     video_url: Optional[str] = None
+    video_public_id: Optional[str] = None
     duration_minutes: Optional[int] = None
     resources: Optional[List[LessonResource]] = None
     is_preview: Optional[bool] = None

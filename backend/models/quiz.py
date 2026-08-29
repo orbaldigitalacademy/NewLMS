@@ -1,8 +1,6 @@
 """Quiz and assessment models."""
-
 from datetime import datetime, timezone
 from typing import List, Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -11,11 +9,20 @@ def utc_now():
 
 
 class QuizQuestion(BaseModel):
-    """A multiple-choice quiz question."""
+    """A quiz question.
+
+    question_type:
+        mcq       -> multiple choice (2+ options, correct_answer in options)
+        truefalse -> True / False (options = ["True", "False"])
+        short     -> short text answer (no options; free-text compared to
+                     correct_answer case-insensitively)
+    """
 
     id: str
     question: str
-    options: List[str] = Field(min_length=2)
+    question_type: str = "mcq"
+    # Empty for short-answer questions.
+    options: List[str] = Field(default_factory=list)
     correct_answer: str
 
 
@@ -27,28 +34,23 @@ class QuizQuestionPublic(BaseModel):
 
     id: str
     question: str
-    options: List[str]
+    question_type: str = "mcq"
+    options: List[str] = Field(default_factory=list)
 
 
 class QuizCreate(BaseModel):
     title: str
     description: Optional[str] = None
-
     # lesson = quiz attached to a lesson
     # final = course/final assessment
     quiz_type: str = "lesson"
-
     course_id: str
     lesson_id: Optional[str] = None
-
     questions: List[QuizQuestion]
-
     # Percentage required to pass
     passing_score: float = 70.0
-
     # Maximum number of attempts
     max_attempts: int = 3
-
     is_published: bool = True
 
 
@@ -56,12 +58,9 @@ class QuizUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     quiz_type: Optional[str] = None
-
     course_id: Optional[str] = None
     lesson_id: Optional[str] = None
-
     questions: Optional[List[QuizQuestion]] = None
-
     passing_score: Optional[float] = None
     max_attempts: Optional[int] = None
     is_published: Optional[bool] = None
@@ -69,22 +68,15 @@ class QuizUpdate(BaseModel):
 
 class Quiz(BaseModel):
     id: str
-
     title: str
     description: Optional[str] = None
-
     quiz_type: str = "lesson"
-
     course_id: str
     lesson_id: Optional[str] = None
-
     questions: List[QuizQuestion]
-
     passing_score: float = 70.0
     max_attempts: int = 3
-
     is_published: bool = True
-
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
@@ -134,18 +126,13 @@ class QuizSubmitRequest(BaseModel):
 
 class QuizAttempt(BaseModel):
     id: str
-
     quiz_id: str
     course_id: str
     lesson_id: Optional[str] = None
-
     user_id: str
-
     answers: dict[str, str]
-
     score: float
     passed: bool
-
     submitted_at: datetime = Field(default_factory=utc_now)
 
     def to_mongo(self):

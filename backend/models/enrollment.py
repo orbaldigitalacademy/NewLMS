@@ -25,7 +25,19 @@ class Enrollment(BaseDocument):
     is_completed: bool = False
     completed_at: Optional[str] = None
 
+    # Assessment progress
+    completed_quizzes: List[str] = Field(default_factory=list)
+    
+    # Final assessment
+    final_quiz_id: Optional[str] = None
+    final_quiz_score: Optional[float] = None
+    
+    # Final course completion
+    course_completed: bool = False
+    course_completed_at: Optional[str] = None
+    
 
 class AdminEnrollRequest(BaseModel):
     user_id: str
     course_id: str
+

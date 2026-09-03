@@ -62,6 +62,14 @@ async def create_live_class(
     payload: dict,
     current_user=Depends(get_current_user)
 ):
+    print("====================================")
+    print("CREATE LIVE CLASS REQUEST RECEIVED")
+    print("PAYLOAD:", payload)
+    print("COURSE ID:", payload.get("course_id"))
+    print("PAYLOAD TYPE:", type(payload))
+    print("====================================")
+
+    require_instructor_or_admin(current_user)
     require_instructor_or_admin(current_user)
 
     title = payload.get("title")

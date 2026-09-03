@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 import uuid
 
@@ -53,35 +53,92 @@ def require_instructor_or_admin(user):
 # ==================================================
 # CREATE LIVE CLASS
 # ==================================================
-
 @router.post("")
 async def create_live_class(
     payload: dict,
     current_user=Depends(get_current_user)
 ):
     require_instructor_or_admin(current_user)
+    # -------------------------
+    # GET SCHEDULED TIME
+    # -------------------------
+    scheduled_at = payload.get("scheduled_at")
+    if not scheduled_at:
+        raise HTTPException(
+            status_code=400,
+            detail="scheduled_at is required"
+        )
 
+    try:
+        start_time = datetime.fromisoformat(
+            scheduled_at.replace("Z", "+00:00")
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid scheduled_at format"
+        )
+
+    # -------------------------
+    # MAKE SURE TIME IS UTC
+    # -------------------------
+    if start_time.tzinfo is None:
+        start_time = start_time.replace(tzinfo=timezone.utc)
+
+    # -------------------------
+    # CALCULATE END TIME
+    # -------------------------
+    duration_minutes = int(
+        payload.get("duration_minutes", 60)
+    )
+
+    if duration_minutes <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Duration must be greater than 0 minutes"
+        )
+
+    from datetime import timedelta
+
+    end_time = start_time + timedelta(
+        minutes=duration_minutes
+    )
+    # -------------------------
+    # CREATE LIVE CLASS
+    # -------------------------
     live_class = {
-    "id": str(uuid.uuid4()),
-    "title": payload.get("title"),
-    "description": payload.get("description", ""),
-    "course_id": payload.get("course_id"),
-    "meeting_url": payload.get("meeting_url"),
-    "room_name": payload.get("room_name"),
-    "start_time": payload.get("start_time"),
-    "end_time": payload.get("end_time"),
-    "recording_url": "",
-    "recording_available": False,
-    "created_by": current_user.id,
-    "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    
+        "id": str(uuid.uuid4()),
+        "title": payload.get("title"),
+        "description": payload.get("description", ""),
+        "course_id": payload.get("course_id"),
 
+        # Match frontend field
+        "meeting_url": payload.get("meeting_link"),
+
+        "room_name": payload.get("room_name"),
+
+        # Store complete ISO datetimes
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
+
+        "recording_url": "",
+        "recording_available": False,
+
+        "created_by": current_user.id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # -------------------------
+    # CALCULATE STATUS
+    # -------------------------
     live_class["status"] = get_live_class_status(
         live_class["start_time"],
         live_class["end_time"]
     )
 
+    # -------------------------
+    # SAVE
+    # -------------------------
     await db.live_classes.insert_one(
         live_class
     )
@@ -90,7 +147,6 @@ async def create_live_class(
         "message": "Live class created",
         "id": live_class["id"]
     }
-
 
 # ==================================================
 # UPDATE LIVE CLASS

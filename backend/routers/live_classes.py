@@ -43,18 +43,30 @@ def require_instructor_or_admin(user):
 
 
 def _parse_start_time(payload: dict) -> datetime:
-    # Canonical key is start_time; accept scheduled_at as legacy fallback.
-    raw = payload.get("start_time") or payload.get("scheduled_at")
+    # Frontend uses scheduled_at.
+    # start_time is accepted only as a fallback for older clients.
+    raw = payload.get("scheduled_at") or payload.get("start_time")
+
     if not raw:
-        raise HTTPException(status_code=400, detail="start_time is required")
+        raise HTTPException(
+            status_code=400,
+            detail="scheduled_at is required"
+        )
+
     try:
-        start_time = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid start_time format")
+        start_time = datetime.fromisoformat(
+            raw.replace("Z", "+00:00")
+        )
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid scheduled_at format"
+        )
+
     if start_time.tzinfo is None:
         start_time = start_time.replace(tzinfo=timezone.utc)
-    return start_time
 
+    return start_time
 
 # ==================================================
 # CREATE LIVE CLASS

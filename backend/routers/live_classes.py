@@ -62,15 +62,7 @@ async def create_live_class(
     payload: dict,
     current_user=Depends(get_current_user)
 ):
-    print("====================================")
-    print("CREATE LIVE CLASS REQUEST RECEIVED")
-    print("PAYLOAD:", payload)
-    print("COURSE ID:", payload.get("course_id"))
-    print("PAYLOAD TYPE:", type(payload))
-    print("====================================")
-
-    require_instructor_or_admin(current_user)
-    require_instructor_or_admin(current_user)
+    require_instructor_or_admin(current_user)  # (removed the duplicate call)
 
     title = payload.get("title")
     course_id = payload.get("course_id")
@@ -81,74 +73,57 @@ async def create_live_class(
     # -------------------------
     # VALIDATION
     # -------------------------
-
     if not title:
-        raise HTTPException(
-            status_code=400,
-            detail="Title is required"
-        )
-
+        raise HTTPException(status_code=400, detail="Title is required")
     if not course_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Course ID is required"
-        )
-
+        raise HTTPException(status_code=400, detail="Course ID is required")
     if not start_time:
+        raise HTTPException(status_code=400, detail="Start time is required")
+
+    # Validate meeting URL
+    meeting_url = (meeting_url or "").strip()
+    if not (meeting_url.startswith("http://") or meeting_url.startswith("https://")):
         raise HTTPException(
             status_code=400,
-            detail="Start time is required"
+            detail="meeting_url must start with http:// or https://"
         )
 
     try:
         duration_minutes = int(duration_minutes)
     except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=400,
-            detail="Duration must be a valid number"
-        )
-
+        raise HTTPException(status_code=400, detail="Duration must be a valid number")
     if duration_minutes <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Duration must be greater than 0"
-        )
+        raise HTTPException(status_code=400, detail="Duration must be greater than 0")
 
     # -------------------------
     # CONVERT START TIME
     # -------------------------
-
     try:
-        start_datetime = datetime.fromisoformat(
-            start_time.replace("Z", "+00:00")
-        )
+        start_datetime = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
     except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid start_time format"
-        )
+        raise HTTPException(status_code=400, detail="Invalid start_time format")
 
-    # Make timezone-aware
     if start_datetime.tzinfo is None:
-        start_datetime = start_datetime.replace(
-            tzinfo=timezone.utc
-        )
+        start_datetime = start_datetime.replace(tzinfo=timezone.utc)
+
+    # Reject past start times
+    if start_datetime < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="start_time cannot be in the past")
+
+    # Verify the course exists -> 404 instead of silently creating an orphan class
+    course = await db.courses.find_one({"id": course_id})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
 
     # -------------------------
     # CALCULATE END TIME
     # -------------------------
-
     from datetime import timedelta
-
-    end_datetime = (
-        start_datetime +
-        timedelta(minutes=duration_minutes)
-    )
+    end_datetime = start_datetime + timedelta(minutes=duration_minutes)
 
     # -------------------------
     # CREATE LIVE CLASS
     # -------------------------
-
     live_class = {
         "id": str(uuid.uuid4()),
         "title": title,
@@ -166,18 +141,10 @@ async def create_live_class(
         "deleted": False,
     }
 
-    # -------------------------
-    # CALCULATE STATUS
-    # -------------------------
-
     live_class["status"] = get_live_class_status(
         live_class["start_time"],
         live_class["end_time"]
     )
-
-    # -------------------------
-    # SAVE
-    # -------------------------
 
     await db.live_classes.insert_one(live_class)
 
@@ -186,9 +153,9 @@ async def create_live_class(
         "id": live_class["id"],
         "status": live_class["status"],
         "start_time": live_class["start_time"],
-        "end_time": live_class["end_time"]
+        "end_time": live_class["end_time"],
     }
-
+    
 # ==================================================
 # UPDATE LIVE CLASS
 # ==================================================

@@ -68,9 +68,7 @@ async def create_live_class(
     print("FULL PAYLOAD:", payload)
     print("course_id VALUE:", repr(payload.get("course_id")))
     print("===========================")
-
-    current_user=Depends(get_current_user)
-):
+    
     require_instructor_or_admin(current_user)  # (removed the duplicate call)
 
     title = payload.get("title")

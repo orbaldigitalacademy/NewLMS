@@ -62,6 +62,15 @@ async def create_live_class(
     payload: dict,
     current_user=Depends(get_current_user)
 ):
+    # --- TEMP DEBUG: shows exactly what the frontend sent ---
+    print("==== CREATE LIVE CLASS ====")
+    print("PAYLOAD KEYS:", list(payload.keys()))
+    print("FULL PAYLOAD:", payload)
+    print("course_id VALUE:", repr(payload.get("course_id")))
+    print("===========================")
+
+    current_user=Depends(get_current_user)
+):
     require_instructor_or_admin(current_user)  # (removed the duplicate call)
 
     title = payload.get("title")

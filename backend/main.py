@@ -37,6 +37,7 @@ from routers import auth as auth_router  # noqa: E402
 from routers import courses as courses_router  # noqa: E402
 from routers import lessons as lessons_router  # noqa: E402
 from routers import quiz as quiz_router
+from routers import live_classes as live_classes_router
 from routers import enrollments as enrollments_router  # noqa: E402
 from routers import payments as payments_router  # noqa: E402
 from routers import testimonials as testimonials_router  # noqa: E402
@@ -437,7 +438,6 @@ api_router.include_router(uploads_router.router)
 api_router.include_router(contacts_router.router)
 api_router.include_router(admin_router.router)
 api_router.include_router(live_classes_router.router)
-
 app.include_router(settings_router, prefix="/api")
 app.include_router(api_router)
 app.include_router(testimonials.router)

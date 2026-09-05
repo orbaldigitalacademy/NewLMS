@@ -436,6 +436,16 @@ api_router.include_router(uploads_router.router)
 api_router.include_router(contacts_router.router)
 api_router.include_router(admin_router.router)
 api_router.include_router(live_classes_router.router)
+print("===== REGISTERED API ROUTES =====")
+for route in api_router.routes:
+    print(
+        getattr(route, "methods", None),
+        getattr(route, "path", None)
+    )
+print("=================================")
+
+app.include_router(api_router)
+
 app.include_router(settings_router, prefix="/api")
 app.include_router(api_router)
 app.include_router(testimonials.router)

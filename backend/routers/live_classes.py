@@ -62,75 +62,138 @@ async def create_live_class(
     payload: dict,
     current_user=Depends(get_current_user)
 ):
-    # --- TEMP DEBUG: shows exactly what the frontend sent ---
     print("==== CREATE LIVE CLASS ====")
     print("PAYLOAD KEYS:", list(payload.keys()))
     print("FULL PAYLOAD:", payload)
     print("course_id VALUE:", repr(payload.get("course_id")))
     print("===========================")
-    
-    require_instructor_or_admin(current_user)  # (removed the duplicate call)
 
+    # ==========================
+    # PERMISSION CHECK
+    # ==========================
+    require_instructor_or_admin(current_user)
+
+    # ==========================
+    # GET PAYLOAD
+    # ==========================
     title = payload.get("title")
     course_id = payload.get("course_id")
     start_time = payload.get("start_time")
     meeting_url = payload.get("meeting_url", "")
     duration_minutes = payload.get("duration_minutes", 60)
 
-    # -------------------------
-    # VALIDATION
-    # -------------------------
+    # ==========================
+    # REQUIRED FIELDS
+    # ==========================
     if not title:
-        raise HTTPException(status_code=400, detail="Title is required")
-    if not course_id:
-        raise HTTPException(status_code=400, detail="Course ID is required")
-    if not start_time:
-        raise HTTPException(status_code=400, detail="Start time is required")
+        raise HTTPException(
+            status_code=400,
+            detail="Title is required"
+        )
 
-    # Validate meeting URL
+    if not course_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Course ID is required"
+        )
+
+    if not start_time:
+        raise HTTPException(
+            status_code=400,
+            detail="Start time is required"
+        )
+
+    # ==========================
+    # VALIDATE MEETING URL
+    # ==========================
     meeting_url = (meeting_url or "").strip()
-    if not (meeting_url.startswith("http://") or meeting_url.startswith("https://")):
+
+    if not (
+        meeting_url.startswith("http://")
+        or meeting_url.startswith("https://")
+    ):
         raise HTTPException(
             status_code=400,
             detail="meeting_url must start with http:// or https://"
         )
 
+    # ==========================
+    # VALIDATE DURATION
+    # ==========================
     try:
         duration_minutes = int(duration_minutes)
     except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="Duration must be a valid number")
-    if duration_minutes <= 0:
-        raise HTTPException(status_code=400, detail="Duration must be greater than 0")
+        raise HTTPException(
+            status_code=400,
+            detail="Duration must be a valid number"
+        )
 
-    # -------------------------
-    # CONVERT START TIME
-    # -------------------------
+    if duration_minutes <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Duration must be greater than 0"
+        )
+
+    # ==========================
+    # PARSE START TIME
+    # ==========================
     try:
-        start_datetime = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+        start_datetime = datetime.fromisoformat(
+            start_time.replace("Z", "+00:00")
+        )
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid start_time format")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid start_time format"
+        )
 
     if start_datetime.tzinfo is None:
-        start_datetime = start_datetime.replace(tzinfo=timezone.utc)
+        start_datetime = start_datetime.replace(
+            tzinfo=timezone.utc
+        )
 
-    # Reject past start times
+    # ==========================
+    # CHECK START TIME
+    # ==========================
     if start_datetime < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="start_time cannot be in the past")
+        raise HTTPException(
+            status_code=400,
+            detail="start_time cannot be in the past"
+        )
 
-    # Verify the course exists -> 404 instead of silently creating an orphan class
-    course = await db.courses.find_one({"id": course_id})
+    # ==========================
+    # VERIFY COURSE EXISTS
+    # IMPORTANT:
+    # BaseDocument stores API `id`
+    # as MongoDB `_id`
+    # ==========================
+    print("LOOKING FOR COURSE _id:", repr(course_id))
+
+    course = await db.courses.find_one({
+        "_id": course_id
+    })
+
+    print("COURSE FOUND:", bool(course))
+
     if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Course not found: {course_id}"
+        )
 
-    # -------------------------
+    # ==========================
     # CALCULATE END TIME
-    # -------------------------
+    # ==========================
     from datetime import timedelta
-    end_datetime = start_datetime + timedelta(minutes=duration_minutes)
 
-    # -------------------------
+    end_datetime = (
+        start_datetime
+        + timedelta(minutes=duration_minutes)
+    )
+
+    # ==========================
     # CREATE LIVE CLASS
-    # -------------------------
+    # ==========================
     live_class = {
         "id": str(uuid.uuid4()),
         "title": title,
@@ -145,16 +208,32 @@ async def create_live_class(
         "recording_available": False,
         "created_by": current_user.id,
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
         "deleted": False,
     }
 
+    # ==========================
+    # DETERMINE STATUS
+    # ==========================
     live_class["status"] = get_live_class_status(
         live_class["start_time"],
         live_class["end_time"]
     )
 
-    await db.live_classes.insert_one(live_class)
+    # ==========================
+    # SAVE TO MONGODB
+    # ==========================
+    result = await db.live_classes.insert_one(
+        live_class
+    )
 
+    print("LIVE CLASS CREATED")
+    print("MONGO ID:", result.inserted_id)
+    print("LIVE CLASS ID:", live_class["id"])
+
+    # ==========================
+    # RESPONSE
+    # ==========================
     return {
         "message": "Live class created",
         "id": live_class["id"],
@@ -162,7 +241,6 @@ async def create_live_class(
         "start_time": live_class["start_time"],
         "end_time": live_class["end_time"],
     }
-    
 # ==================================================
 # UPDATE LIVE CLASS
 # ==================================================

@@ -8,7 +8,6 @@ from fastapi import APIRouter, FastAPI
 from pathlib import Path
 from starlette.middleware.cors import CORSMiddleware
 from routers import testimonials
-from routers import live_classes as live_classes_router
 from routers import uploads as uploads_router
 from routers.settings import router as settings_router
 
@@ -39,7 +38,6 @@ from routers import lessons as lessons_router  # noqa: E402
 from routers import quiz as quiz_router
 from routers import live_classes as live_classes_router
 from routers import enrollments as enrollments_router  # noqa: E402
-from routers import payments as payments_router  # noqa: E402
 from routers import testimonials as testimonials_router  # noqa: E402
 from routers import uploads as uploads_router  # noqa: E402
 from routers import contacts as contacts_router  # noqa: E402

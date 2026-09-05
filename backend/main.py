@@ -8,7 +8,6 @@ from fastapi import APIRouter, FastAPI
 from pathlib import Path
 from starlette.middleware.cors import CORSMiddleware
 from routers import testimonials
-from routers import live_classes as live_classes_router
 from routers import uploads as uploads_router
 from routers.settings import router as settings_router
 
@@ -41,7 +40,7 @@ from routers import lessons as lessons_router
 from routers import quiz as quiz_router
 from routers import live_classes as live_classes_router
 from routers import enrollments as enrollments_router
-from routers import payments as payments_router
+from routers.payments import router as payments_router
 from routers import testimonials as testimonials_router
 from routers import uploads as uploads_router
 from routers import contacts as contacts_router

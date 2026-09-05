@@ -8,6 +8,7 @@ from fastapi import APIRouter, FastAPI
 from pathlib import Path
 from starlette.middleware.cors import CORSMiddleware
 from routers import testimonials
+from routers import live_classes as live_classes_router
 from routers import uploads as uploads_router
 from routers.settings import router as settings_router
 
@@ -31,23 +32,22 @@ from models.course import Course  # noqa: E402
 from models.lesson import Lesson, LessonResource  # noqa: E402
 from models.testimonial import Testimonial  # noqa: E402
 
-# ============================================================
-# ROUTER IMPORTS
-# ============================================================
-from routers import auth as auth_router
-from routers import courses as courses_router
-from routers import lessons as lessons_router
+# Routers
+from routers import auth as auth_router  # noqa: E402
+from routers import courses as courses_router  # noqa: E402
+from routers import lessons as lessons_router  # noqa: E402
 from routers import quiz as quiz_router
 from routers import live_classes as live_classes_router
-from routers import enrollments as enrollments_router
+from routers import enrollments as enrollments_router  # noqa: E402
+from routers import payments as payments_router  # noqa: E402
+from routers import testimonials as testimonials_router  # noqa: E402
+from routers import uploads as uploads_router  # noqa: E402
+from routers import contacts as contacts_router  # noqa: E402
+from routers import admin as admin_router  # noqa: E402
 from routers.payments import router as payments_router
-from routers import testimonials as testimonials_router
-from routers import uploads as uploads_router
-from routers import contacts as contacts_router
-from routers import admin as admin_router
 from routers import profile
-from routers.settings import router as settings_router
 from routers.fx import fx_router
+
 
 
 async def seed_data():
@@ -399,10 +399,6 @@ async def log_origin(request, call_next):
     response = await call_next(request)
     return response
 
-# ============================================================
-# API ROUTER
-# ============================================================
-
 api_router = APIRouter(prefix="/api")
 
 
@@ -415,11 +411,22 @@ async def root():
 async def health():
     return {"status": "ok"}
 
+origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+print("CORS Origins:", origins)
 
-# ============================================================
-# MOUNT ALL API ROUTERS
-# ============================================================
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
+# Mount sub-routers
 api_router.include_router(auth_router.router)
 api_router.include_router(courses_router.router)
 api_router.include_router(lessons_router.router)
@@ -430,24 +437,10 @@ api_router.include_router(testimonials_router.router)
 api_router.include_router(uploads_router.router)
 api_router.include_router(contacts_router.router)
 api_router.include_router(admin_router.router)
-
-# LIVE CLASSES
 api_router.include_router(live_classes_router.router)
-
-# SETTINGS
-api_router.include_router(settings_router)
-
-# PROFILE
-api_router.include_router(profile.router)
-
-# FX
-api_router.include_router(fx_router)
-
-
-# ============================================================
-# MOUNT THE ENTIRE API
-# ============================================================
-
+app.include_router(settings_router, prefix="/api")
 app.include_router(api_router)
-
-
+app.include_router(testimonials.router)
+app.include_router(uploads_router.router,prefix="/api",)
+app.include_router(profile.router, prefix="/api")
+app.include_router(fx_router, prefix="/api")

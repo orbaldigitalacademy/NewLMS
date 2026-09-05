@@ -255,7 +255,7 @@ async def update_live_class(
 
     existing = await db.live_classes.find_one(
         {
-            "id": class_id,
+            "_id": class_id,
             "deleted": {"$ne": True}
         }
     )
@@ -287,7 +287,7 @@ async def update_live_class(
     )
 
     await db.live_classes.update_one(
-        {"id": class_id},
+        {"_id": class_id},
         {"$set": payload}
     )
 
@@ -309,7 +309,7 @@ async def delete_live_class(
 
     result = await db.live_classes.update_one(
         {
-            "id": class_id,
+            "_id": class_id,
             "deleted": {"$ne": True}
         },
         {
@@ -422,7 +422,7 @@ async def get_live_class(
 ):
     live_class = await db.live_classes.find_one(
         {
-            "id": class_id,
+            "_id": class_id,
             "deleted": {"$ne": True}
         },
         {"_id": 0}
@@ -453,7 +453,7 @@ async def join_live_class(
 ):
     live_class = await db.live_classes.find_one(
         {
-            "id": class_id,
+            "_id": class_id,
             "deleted": {"$ne": True}
         }
     )
@@ -495,7 +495,7 @@ async def join_live_class(
 
     if not existing_attendance:
         await db.attendance.insert_one({
-            "id": str(uuid.uuid4()),
+            "_id": str(uuid.uuid4()),
             "class_id": class_id,
             "user_id": current_user.id,
             "joined_at": datetime.now(
@@ -608,7 +608,7 @@ async def add_recording(
 
     result = await db.live_classes.update_one(
         {
-            "id": class_id,
+            "_id": class_id,
             "deleted": {"$ne": True}
         },
         {

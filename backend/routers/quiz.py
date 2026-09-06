@@ -351,6 +351,58 @@ async def delete_quiz(
         "message": "Quiz deleted successfully"
     }
 
+# ============================================================
+# STUDENT: GET ALL QUIZZES FOR A COURSE
+# ============================================================
+@router.get("/course/{course_id}")
+async def get_course_quizzes(
+    course_id: str,
+    user: User = Depends(get_current_user),
+):
+    """
+    Return all published quizzes belonging to a course.
+    Correct answers are never returned.
+    """
+
+    # Check that the student is enrolled
+    enrollment = await get_enrollment(
+        user.id,
+        course_id,
+    )
+
+    if not enrollment:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not enrolled in this course",
+        )
+
+    # Check enrollment approval
+    payment_status = enrollment.get("payment_status")
+
+    if payment_status and payment_status != "approved":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your enrollment has not been approved",
+        )
+
+    # Get all published quizzes for this course
+    quiz_docs = await db.quizzes.find(
+        {
+            "course_id": course_id,
+            "is_published": True,
+        }
+    ).sort(
+        "created_at",
+        1,
+    ).to_list(length=None)
+
+    return [
+        quiz_public_response(
+            Quiz.from_mongo(doc)
+        )
+        for doc in quiz_docs
+    ]
+
 
 # ============================================================
 # STUDENT: GET QUIZ FOR A LESSON

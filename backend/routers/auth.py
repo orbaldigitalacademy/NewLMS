@@ -53,7 +53,7 @@ FRONTEND_URL = os.getenv(
 resend.api_key = os.getenv("RESEND_API_KEY")
 EMAIL_FROM = os.getenv(
     "EMAIL_FROM",
-    "Orbal Digital Academy <noreply@orbalacademy.com>"
+    "PASSWORD_RESET_EMAIL_FROM"
 )
 
 EMAIL_VERIFICATION_EXPIRE_HOURS = int(

@@ -613,3 +613,428 @@ async def me(
     user: User = Depends(get_current_user),
 ):
     return _to_public(user)
+
+
+# ============================================================
+# FORGOT PASSWORD & RESET PASSWORD
+# Orbal Digital Academy LMS
+# ============================================================
+
+import html
+from urllib.parse import quote
+
+RESET_TOKEN_EXPIRE_MINUTES = int(
+    os.getenv("RESET_TOKEN_EXPIRE_MINUTES", "30")
+)
+
+RESET_REQUEST_COOLDOWN_SECONDS = 60
+
+
+# ------------------------------------------------------------
+# Request models
+# ------------------------------------------------------------
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+# ------------------------------------------------------------
+# Generate secure password reset token
+# ------------------------------------------------------------
+
+def _create_password_reset_token():
+    raw_token = secrets.token_urlsafe(32)
+
+    token_hash = hashlib.sha256(
+        raw_token.encode("utf-8")
+    ).hexdigest()
+
+    expires_at = _utc_now() + timedelta(
+        minutes=RESET_TOKEN_EXPIRE_MINUTES
+    )
+
+    return raw_token, token_hash, expires_at
+
+
+# ------------------------------------------------------------
+# Send password reset email using Resend
+# ------------------------------------------------------------
+
+def send_password_reset_email(
+    recipient_email: str,
+    recipient_name: str,
+    reset_url: str,
+) -> bool:
+
+    try:
+        safe_name = html.escape(recipient_name)
+
+        email_html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport"
+                  content="width=device-width, initial-scale=1">
+        </head>
+
+        <body style="
+            margin:0;
+            padding:0;
+            background:#f4f6fa;
+            font-family:Arial,Helvetica,sans-serif;
+            color:#17253e;
+        ">
+
+        <table role="presentation"
+               width="100%"
+               cellpadding="0"
+               cellspacing="0">
+
+            <tr>
+                <td align="center" style="padding:30px 12px;">
+
+                    <table role="presentation"
+                           width="100%"
+                           cellpadding="0"
+                           cellspacing="0"
+                           style="
+                               max-width:600px;
+                               background:#ffffff;
+                               border-radius:12px;
+                               overflow:hidden;
+                           ">
+
+                        <tr>
+                            <td style="
+                                background:#17315c;
+                                padding:30px;
+                                text-align:center;
+                            ">
+
+                                <h1 style="
+                                    color:#ffffff;
+                                    margin:0;
+                                    font-size:25px;
+                                ">
+                                    ORBAL DIGITAL ACADEMY
+                                </h1>
+
+                                <p style="
+                                    color:#dce7fa;
+                                    font-size:14px;
+                                ">
+                                    Learning Management System
+                                </p>
+
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td style="padding:35px 30px;">
+
+                                <h2 style="
+                                    color:#17315c;
+                                    margin-top:0;
+                                ">
+                                    Reset Your Password
+                                </h2>
+
+                                <p>Hello <strong>{safe_name}</strong>,</p>
+
+                                <p style="line-height:1.7;">
+                                    We received a request to reset
+                                    the password associated with
+                                    your Orbal Digital Academy account.
+                                </p>
+
+                                <p style="line-height:1.7;">
+                                    Click the button below to
+                                    create a new password.
+                                </p>
+
+                                <div style="
+                                    text-align:center;
+                                    margin:35px 0;
+                                ">
+
+                                    <a href="{reset_url}"
+                                       style="
+                                           background:#0B5ED7;
+                                           color:#ffffff;
+                                           padding:15px 30px;
+                                           border-radius:7px;
+                                           text-decoration:none;
+                                           font-weight:bold;
+                                           display:inline-block;
+                                       ">
+                                        Reset My Password
+                                    </a>
+
+                                </div>
+
+                                <p style="
+                                    font-size:14px;
+                                    color:#666666;
+                                ">
+                                    This password reset link will
+                                    expire in
+                                    {RESET_TOKEN_EXPIRE_MINUTES}
+                                    minutes.
+                                </p>
+
+                                <p style="
+                                    font-size:14px;
+                                    color:#666666;
+                                ">
+                                    If you did not request a
+                                    password reset, you can
+                                    safely ignore this email.
+                                </p>
+
+                                <hr style="
+                                    border:0;
+                                    border-top:1px solid #eeeeee;
+                                    margin:30px 0;
+                                ">
+
+                                <p style="
+                                    font-size:12px;
+                                    color:#888888;
+                                ">
+                                    For assistance, contact
+                                    Orbal Digital Academy support.
+                                </p>
+
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td style="
+                                background:#f1f4f8;
+                                text-align:center;
+                                padding:20px;
+                                font-size:12px;
+                                color:#777777;
+                            ">
+                                © Orbal Digital Academy.
+                                All rights reserved.
+                            </td>
+                        </tr>
+
+                    </table>
+
+                </td>
+            </tr>
+
+        </table>
+
+        </body>
+        </html>
+        """
+
+        response = resend.Emails.send({
+            "from": EMAIL_FROM,
+            "to": [recipient_email],
+            "subject": (
+                "Reset Your Password | "
+                "Orbal Digital Academy"
+            ),
+            "html": email_html,
+            "text": (
+                f"Hello {recipient_name},\n\n"
+                "We received a request to reset your password.\n\n"
+                f"Reset your password here:\n{reset_url}\n\n"
+                f"This link expires in "
+                f"{RESET_TOKEN_EXPIRE_MINUTES} minutes.\n\n"
+                "If you did not request this, ignore this email.\n\n"
+                "Orbal Digital Academy"
+            ),
+        })
+
+        logger.info(
+            "Password reset email accepted by Resend for %s",
+            recipient_email
+        )
+
+        return True
+
+    except Exception:
+        logger.exception(
+            "Failed to send password reset email to %s",
+            recipient_email
+        )
+        return False
+
+
+# ------------------------------------------------------------
+# FORGOT PASSWORD ENDPOINT
+# ------------------------------------------------------------
+
+@router.post(
+    "/forgot-password",
+    response_model=MessageResponse
+)
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+):
+
+    email = data.email.strip().lower()
+
+    generic_message = (
+        "If an account exists with this email address, "
+        "a password reset link will be sent."
+    )
+
+    document = await db.users.find_one({
+        "email": email
+    })
+
+    # Do not disclose whether the account exists.
+    if not document:
+        return MessageResponse(message=generic_message)
+
+    now = _utc_now()
+
+    last_sent = document.get("password_reset_sent_at")
+
+    if last_sent:
+        if last_sent.tzinfo is None:
+            last_sent = last_sent.replace(
+                tzinfo=timezone.utc
+            )
+
+        seconds_elapsed = (
+            now - last_sent
+        ).total_seconds()
+
+        if seconds_elapsed < RESET_REQUEST_COOLDOWN_SECONDS:
+            return MessageResponse(message=generic_message)
+
+    raw_token, token_hash, expires_at = (
+        _create_password_reset_token()
+    )
+
+    # Atomic cooldown check: only one concurrent request
+    # can claim the reset window for this user.
+    cutoff = now - timedelta(
+        seconds=RESET_REQUEST_COOLDOWN_SECONDS
+    )
+
+    result = await db.users.update_one(
+        {
+            "_id": document["_id"],
+            "$or": [
+                {"password_reset_sent_at": {"$exists": False}},
+                {"password_reset_sent_at": {"$lte": cutoff}}
+            ]
+        },
+        {
+            "$set": {
+                "password_reset_token_hash": token_hash,
+                "password_reset_expires_at": expires_at,
+                "password_reset_sent_at": now
+            }
+        }
+    )
+
+    if result.modified_count == 0:
+        return MessageResponse(message=generic_message)
+
+    reset_url = (
+        f"{FRONTEND_URL}/reset-password"
+        f"?token={quote(raw_token, safe='')}"
+    )
+
+    background_tasks.add_task(
+        send_password_reset_email,
+        email,
+        document.get("name", "Student"),
+        reset_url
+    )
+
+    return MessageResponse(message=generic_message)
+
+
+# ------------------------------------------------------------
+# RESET PASSWORD ENDPOINT
+# ------------------------------------------------------------
+
+@router.post(
+    "/reset-password",
+    response_model=MessageResponse
+)
+async def reset_password(data: ResetPasswordRequest):
+
+    if len(data.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must contain at least 8 characters."
+        )
+
+    if len(data.new_password) > 128:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must not exceed 128 characters."
+        )
+
+    if not data.token or len(data.token) > 256:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset link."
+        )
+
+    token_hash = hashlib.sha256(
+        data.token.encode("utf-8")
+    ).hexdigest()
+
+    now = _utc_now()
+
+    # Hash password before consuming the token.
+    new_password_hash = hash_password(
+        data.new_password
+    )
+
+    # Atomically verify expiry and consume the token.
+    # This prevents two requests from using one token.
+    result = await db.users.update_one(
+        {
+            "password_reset_token_hash": token_hash,
+            "password_reset_expires_at": {
+                "$gt": now
+            }
+        },
+        {
+            "$set": {
+                "password_hash": new_password_hash,
+                "password_changed_at": now
+            },
+            "$unset": {
+                "password_reset_token_hash": "",
+                "password_reset_expires_at": "",
+                "password_reset_sent_at": ""
+            }
+        }
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Invalid or expired password reset link. "
+                "Please request a new one."
+            )
+        )
+
+    return MessageResponse(
+        message=(
+            "Your password has been reset successfully. "
+            "You can now log in with your new password."
+        )
+    )

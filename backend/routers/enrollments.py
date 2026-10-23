@@ -212,26 +212,84 @@ async def update_progress(
     return Enrollment.from_mongo(new_doc)
 
 @router.get("/certificate/{course_id}")
-async def download_certificate(course_id: str, user: User = Depends(get_current_user)):
-    enrollment_doc = await db.enrollments.find_one(
-        {"user_id": user.id, "course_id": course_id}
-    )
-    if not enrollment_doc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Enrollment not found")
-    enrollment = Enrollment.from_mongo(enrollment_doc)
-    if not enrollment.is_completed:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Course not yet completed")
+async def download_certificate(
+    course_id: str,
+    user: User = Depends(get_current_user)
+):
+    # 1. Verify student enrollment
+    enrollment_doc = await db.enrollments.find_one({
+        "user_id": user.id,
+        "course_id": course_id
+    })
 
-    course_doc = await db.courses.find_one({"_id": course_id})
+    if not enrollment_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Enrollment not found"
+        )
+
+    enrollment = Enrollment.from_mongo(enrollment_doc)
+
+    # 2. Verify required course lessons are completed
+    if not enrollment.is_completed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Complete all required lessons before downloading your certificate."
+        )
+
+    # 3. Find the published final assessment
+    final_quiz_doc = await db.quizzes.find_one({
+        "course_id": course_id,
+        "quiz_type": "final",
+        "is_published": True
+    })
+
+    if not final_quiz_doc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Final Assessment has not been published."
+        )
+
+    # 4. Verify the student passed the final assessment
+    passed_attempt = await db.quiz_attempts.find_one({
+        "user_id": user.id,
+        "course_id": course_id,
+        "quiz_id": final_quiz_doc["_id"],
+        "passed": True
+    })
+
+    if not passed_attempt:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You must pass the Final Assessment before downloading your certificate."
+        )
+
+    # 5. Retrieve course information
+    course_doc = await db.courses.find_one({
+        "_id": course_id
+    })
+
+    if not course_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Course not found"
+        )
+
     course = Course.from_mongo(course_doc)
+
+    # 6. Generate certificate
     pdf_bytes = generate_certificate_pdf(
         student_name=user.name,
         course_title=course.title,
         completion_date=enrollment.completed_at,
     )
+
     filename = f"certificate-{course.slug}.pdf"
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
     )

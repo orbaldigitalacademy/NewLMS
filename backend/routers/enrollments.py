@@ -293,3 +293,51 @@ async def download_certificate(
             "Content-Disposition": f'attachment; filename="{filename}"'
         },
     )
+
+@router.get("/certificate-eligibility/{course_id}")
+async def certificate_eligibility(
+    course_id: str,
+    user: User = Depends(get_current_user)
+):
+    enrollment_doc = await db.enrollments.find_one({
+        "user_id": user.id,
+        "course_id": course_id
+    })
+
+    if not enrollment_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Enrollment not found"
+        )
+
+    enrollment = Enrollment.from_mongo(enrollment_doc)
+
+    final_quiz_doc = await db.quizzes.find_one({
+        "course_id": course_id,
+        "quiz_type": "final",
+        "is_published": True
+    })
+
+    final_passed = False
+
+    if final_quiz_doc:
+        passed_attempt = await db.quiz_attempts.find_one({
+            "user_id": user.id,
+            "course_id": course_id,
+            "quiz_id": final_quiz_doc["_id"],
+            "passed": True
+        })
+
+        final_passed = passed_attempt is not None
+
+    eligible = bool(
+        enrollment.is_completed and final_passed
+    )
+
+    return {
+        "course_id": course_id,
+        "lessons_completed": bool(enrollment.is_completed),
+        "final_assessment_published": final_quiz_doc is not None,
+        "final_assessment_passed": final_passed,
+        "certificate_eligible": eligible
+    }

@@ -402,3 +402,49 @@ async def certificate_eligibility(
         "final_assessment_passed": final_passed,
         "certificate_eligible": eligible
     }
+# ============================================================
+# PUBLIC CERTIFICATE VERIFICATION
+# ============================================================
+
+@router.get("/certificates/verify/{certificate_id}")
+async def verify_certificate(certificate_id: str):
+
+    # 1. Find certificate by its unique ID
+    certificate = await db.certificates.find_one({
+        "certificate_id": certificate_id
+    })
+
+    if not certificate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Certificate not found"
+        )
+
+    # 2. Check certificate status
+    certificate_status = certificate.get("status", "unknown")
+
+    if certificate_status != "valid":
+        return {
+            "valid": False,
+            "certificate_id": certificate_id,
+            "status": certificate_status,
+            "message": "This certificate is not currently valid."
+        }
+
+    # 3. Return public verification information
+    issued_at = certificate.get("issued_at")
+
+    return {
+        "valid": True,
+        "certificate_id": certificate["certificate_id"],
+        "student_name": certificate.get("student_name"),
+        "course_title": certificate.get("course_title"),
+        "issued_at": (
+            issued_at.isoformat()
+            if isinstance(issued_at, datetime)
+            else issued_at
+        ),
+        "status": certificate_status,
+        "issued_by": "Orbal Digital Academy",
+        "message": "Certificate successfully verified"
+    }

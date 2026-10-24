@@ -313,6 +313,8 @@ async def download_certificate(
         student_name=user.name,
         course_title=course.title,
         completion_date=enrollment.completed_at,
+        certificate_id=certificate["certificate_id"],
+        verification_url=verification_url,
     )
 
     # Verify PDF was generated correctly

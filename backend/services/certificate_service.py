@@ -4,6 +4,8 @@ CERT_TRAINING_SIGNATURE_PATH, CERT_DIRECTOR_SIGNATURE_PATH.
 """
 import io
 import os
+from pathlib import Path
+from reportlab.lib.utils import ImageReader
 from datetime import date, datetime, timezone
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import landscape, A4
@@ -21,6 +23,9 @@ OLIVE = HexColor('#6D6B0B')
 ORANGE = HexColor('#FF874D')
 INK = HexColor('#101828')
 
+BASE_DIR = Path(__file__).resolve().parent
+
+LOGO_PATH = BASE_DIR / "assets" / "orbal_logo.png"
 
 def _date(value):
     if isinstance(value, datetime):
@@ -99,12 +104,23 @@ def generate_certificate_pdf(
     c.rect(m, 45, W-2*m, H-91, fill=1, stroke=0)
 
     # Brand logo and title
-    logo = os.getenv('CERT_LOGO_PATH', '')
-    if not _asset(c, logo, m+19, H-151, 76, 76):
-        c.setStrokeColor(OLIVE); c.setLineWidth(2)
-        c.circle(m+57,H-113,33,fill=0,stroke=1)
-        c.setFillColor(OLIVE); c.setFont('Helvetica-Bold',11)
-        c.drawCentredString(m+57,H-116,'ODA')
+    if LOGO_PATH.is_file():
+
+        logo = ImageReader(str(LOGO_PATH))
+    
+        logo_width = 1.1 * inch
+        logo_height = 1.1 * inch
+
+        c.drawImage(
+            logo,
+            0.9 * inch,
+            page_h - 1.65 * inch,
+            width=logo_width,
+            height=logo_height,
+            preserveAspectRatio=True,
+            mask="auto"
+        )
+        
     c.setFillColor(OLIVE)
     heading_size = _fit(c, ACADEMY, 'Helvetica-Bold', 27, 18, W-270)
     c.setFont('Helvetica-Bold',heading_size)

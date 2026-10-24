@@ -315,6 +315,7 @@ async def download_certificate(
         completion_date=enrollment.completed_at,
         certificate_id=certificate["certificate_id"],
         verification_url=verification_url,
+        enrollment_date=enrollment_doc.get("created_at"),
     )
 
     # Verify PDF was generated correctly

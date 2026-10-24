@@ -45,6 +45,7 @@ from routers import admin as admin_router  # noqa: E402
 from routers.payments import router as payments_router
 from routers import profile
 from routers.fx import fx_router
+from routers.enrollments import create_certificate_indexes
 
 
 
@@ -378,8 +379,10 @@ async def lifespan(_app: FastAPI):
         "user_id"
     )
 
+    await create_certificate_indexes()
+    print("Certificate indexes initialized successfully")
     start_scheduler()
-
+    
     yield
 
     # --------------------

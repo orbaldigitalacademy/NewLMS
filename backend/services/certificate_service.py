@@ -4,13 +4,15 @@ CERT_TRAINING_SIGNATURE_PATH, CERT_DIRECTOR_SIGNATURE_PATH.
 """
 import io
 import os
+
 from pathlib import Path
-from reportlab.lib.utils import ImageReader
 from datetime import date, datetime, timezone
+
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import landscape, A4
-from reportlab.lib.colors import HexColor, Color
+from reportlab.lib.colors import HexColor
 from reportlab.lib.utils import ImageReader
+
 from reportlab.graphics.barcode import qr
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics import renderPDF
@@ -23,7 +25,7 @@ OLIVE = HexColor('#6D6B0B')
 ORANGE = HexColor('#FF874D')
 INK = HexColor('#101828')
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 LOGO_PATH = BASE_DIR / "assets" / "orbal_logo.png"
 
@@ -41,12 +43,32 @@ def _date(value):
 
 
 def _asset(c, path, x, y, w, h):
-    if not path or not os.path.isfile(path):
+
+    if not path:
         return False
+
+    if not os.path.isfile(path):
+        print(f"Asset not found: {path}")
+        return False
+
     try:
-        c.drawImage(ImageReader(path), x, y, w, h, preserveAspectRatio=True, anchor='c', mask='auto')
+        image = ImageReader(path)
+
+        c.drawImage(
+            image,
+            x,
+            y,
+            width=w,
+            height=h,
+            preserveAspectRatio=True,
+            anchor="c",
+            mask="auto"
+        )
+
         return True
-    except Exception:
+
+    except Exception as e:
+        print(f"Failed to load certificate asset {path}: {e}")
         return False
 
 
@@ -103,23 +125,33 @@ def generate_certificate_pdf(
     c.setFillColor(HexColor('#FFFFFF'))
     c.rect(m, 45, W-2*m, H-91, fill=1, stroke=0)
 
-    # Brand logo and title
     # Official Orbal Digital Academy logo
-    BASE_DIR = Path(__file__).resolve().parent
-    
-    LOGO_PATH = BASE_DIR / "assets" / "orbal_logo.png"
-    
+        # ---------------------------------
+    # Official Orbal Digital Academy Logo
+    # ---------------------------------
+
     logo = os.getenv("CERT_LOGO_PATH") or str(LOGO_PATH)
-    
-    if not _asset(c, logo, m+19, H-151, 76, 76):
+
+    print("Certificate logo path:", logo)
+    print("Certificate logo exists:", os.path.isfile(logo))
+
+    if not _asset(c, logo, m + 19, H - 151, 76, 76):
+        print("WARNING: Custom certificate logo could not be loaded.")
+
         c.setStrokeColor(OLIVE)
         c.setLineWidth(2)
-        c.circle(m+57, H-113, 33, fill=0, stroke=1)
+        c.circle(m + 57, H - 113, 33, fill=0, stroke=1)
+
+        c.setFillColor(OLIVE)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawCentredString(
+            m + 57,
+            H - 116,
+            "ODA"
+        )
 
     c.setFillColor(OLIVE)
-    c.setFont("Helvetica-Bold", 11)
-    c.drawCentredString(m+57, H-116, "ODA")
-    c.setFillColor(OLIVE)
+        
     heading_size = _fit(c, ACADEMY, 'Helvetica-Bold', 27, 18, W-270)
     c.setFont('Helvetica-Bold',heading_size)
     c.drawCentredString(W/2+28,H-116,ACADEMY)
@@ -195,8 +227,21 @@ def generate_certificate_pdf(
         raise ValueError('Invalid PDF generated')
     return data
 
-if __name__ == '__main__':
-    sample = generate_certificate_pdf('Sample Student','Professional Certificate Course in Data Analytics',completion_date='2026-10-22T18:04:49.952434+00:00',certificate_id='ODA-SAMPLE123',verification_url='https://www.orbalacademy.com/verify/ODA-SAMPLE123',enrollment_date='2026-07-22')
-    with open('/mnt/data/orbal_certificate_preview.pdf','wb') as f:
+if __name__ == "__main__":
+
+    sample = generate_certificate_pdf(
+        student_name="Sample Student",
+        course_title="Professional Certificate Course in Data Analytics",
+        completion_date="2026-10-22T18:04:49.952434+00:00",
+        certificate_id="ODA-SAMPLE123",
+        verification_url="https://www.orbalacademy.com/verify/ODA-SAMPLE123",
+        enrollment_date="2026-07-22"
+    )
+
+    output_path = BASE_DIR / "orbal_certificate_preview.pdf"
+
+    with open(output_path, "wb") as f:
         f.write(sample)
-    print('Generated',len(sample),'bytes')
+
+    print("Generated:", len(sample), "bytes")
+    print("Saved to:", output_path)

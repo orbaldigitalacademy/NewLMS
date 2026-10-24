@@ -1,6 +1,8 @@
 """Enrollments router: enroll in free course, view enrollments, progress, certificate."""
 from datetime import datetime, timezone
 from typing import List
+from uuid import uuid4
+from pymongo import ReturnDocument
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
@@ -264,35 +266,78 @@ async def download_certificate(
             detail="You must pass the Final Assessment before downloading your certificate."
         )
 
-    # 5. Retrieve course information
-    course_doc = await db.courses.find_one({
-        "_id": course_id
-    })
-
-    if not course_doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course not found"
+       # 5. Retrieve course information
+        course_doc = await db.courses.find_one({
+            "_id": course_id
+        })
+    
+        if not course_doc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course not found"
+            )
+    
+        course = Course.from_mongo(course_doc)
+    
+        # 6. Create or retrieve certificate record
+        certificate_id = f"ODA-{uuid4().hex[:16].upper()}"
+    
+        certificate = await db.certificates.find_one_and_update(
+            {
+                "student_id": user.id,
+                "course_id": course_id
+            },
+            {
+                "$setOnInsert": {
+                    "certificate_id": certificate_id,
+                    "student_id": user.id,
+                    "student_name": user.name,
+                    "course_id": course_id,
+                    "course_title": course.title,
+                    "issued_at": datetime.now(timezone.utc),
+                    "status": "valid",
+                }
+            },
+            upsert=True,
+            return_document=ReturnDocument.AFTER
         )
-
-    course = Course.from_mongo(course_doc)
-
-    # 6. Generate certificate
-    pdf_bytes = generate_certificate_pdf(
-        student_name=user.name,
-        course_title=course.title,
-        completion_date=enrollment.completed_at,
+    
+        # 7. Generate verification URL
+        verification_url = (
+            f"https://www.orbalacademy.com/verify/"
+            f"{certificate['certificate_id']}"
+        )
+    
+        # 8. Generate PDF
+        # Keep existing parameters until the PDF generator is updated.
+        pdf_bytes = generate_certificate_pdf(
+            student_name=user.name,
+            course_title=course.title,
+            completion_date=enrollment.completed_at,
+        )
+    
+        filename = f"certificate-{course.slug}.pdf"
+    
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            },
+        )
+async def create_certificate_indexes():
+    await db.certificates.create_index(
+        "certificate_id",
+        unique=True
     )
 
-    filename = f"certificate-{course.slug}.pdf"
-
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        },
-    )
+    await db.certificates.create_index(
+        [
+            ("student_id", 1),
+            ("course_id", 1)
+        ],
+        unique=True
+    ) 
 
 @router.get("/certificate-eligibility/{course_id}")
 async def certificate_eligibility(

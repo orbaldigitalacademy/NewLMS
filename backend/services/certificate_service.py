@@ -104,23 +104,21 @@ def generate_certificate_pdf(
     c.rect(m, 45, W-2*m, H-91, fill=1, stroke=0)
 
     # Brand logo and title
-    if LOGO_PATH.is_file():
+    # Official Orbal Digital Academy logo
+BASE_DIR = Path(__file__).resolve().parent
 
-        logo = ImageReader(str(LOGO_PATH))
-    
-        logo_width = 1.1 * inch
-        logo_height = 1.1 * inch
+LOGO_PATH = BASE_DIR / "assets" / "orbal_logo.png"
 
-        c.drawImage(
-            logo,
-            0.9 * inch,
-            page_h - 1.65 * inch,
-            width=logo_width,
-            height=logo_height,
-            preserveAspectRatio=True,
-            mask="auto"
-        )
-        
+logo = os.getenv("CERT_LOGO_PATH") or str(LOGO_PATH)
+
+if not _asset(c, logo, m+19, H-151, 76, 76):
+    c.setStrokeColor(OLIVE)
+    c.setLineWidth(2)
+    c.circle(m+57, H-113, 33, fill=0, stroke=1)
+
+    c.setFillColor(OLIVE)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawCentredString(m+57, H-116, "ODA")
     c.setFillColor(OLIVE)
     heading_size = _fit(c, ACADEMY, 'Helvetica-Bold', 27, 18, W-270)
     c.setFont('Helvetica-Bold',heading_size)

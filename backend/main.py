@@ -383,6 +383,11 @@ async def lifespan(_app: FastAPI):
     print("Certificate indexes initialized successfully")
     start_scheduler()
     
+    await db.certificates.create_index(
+        "certificate_id",
+        unique=True
+    )
+    
     yield
 
     # --------------------

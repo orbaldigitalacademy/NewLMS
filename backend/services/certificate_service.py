@@ -105,16 +105,16 @@ def generate_certificate_pdf(
 
     # Brand logo and title
     # Official Orbal Digital Academy logo
-BASE_DIR = Path(__file__).resolve().parent
-
-LOGO_PATH = BASE_DIR / "assets" / "orbal_logo.png"
-
-logo = os.getenv("CERT_LOGO_PATH") or str(LOGO_PATH)
-
-if not _asset(c, logo, m+19, H-151, 76, 76):
-    c.setStrokeColor(OLIVE)
-    c.setLineWidth(2)
-    c.circle(m+57, H-113, 33, fill=0, stroke=1)
+    BASE_DIR = Path(__file__).resolve().parent
+    
+    LOGO_PATH = BASE_DIR / "assets" / "orbal_logo.png"
+    
+    logo = os.getenv("CERT_LOGO_PATH") or str(LOGO_PATH)
+    
+    if not _asset(c, logo, m+19, H-151, 76, 76):
+        c.setStrokeColor(OLIVE)
+        c.setLineWidth(2)
+        c.circle(m+57, H-113, 33, fill=0, stroke=1)
 
     c.setFillColor(OLIVE)
     c.setFont("Helvetica-Bold", 11)

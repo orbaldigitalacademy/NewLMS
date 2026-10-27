@@ -231,12 +231,40 @@ def generate_certificate_pdf(
         35
     ):
         print("Executive Director signature not found")
-    c.setFillColor(INK); c.setFont('Times-Bold',12)
-    c.drawString(m+48,bottom+16,os.getenv('CERT_TRAINING_NAME','Head of Training'))
-    c.drawString(W-m-210,bottom+16,os.getenv('CERT_DIRECTOR_NAME','Executive Director'))
-    c.setFont('Times-Roman',9)
-    c.drawString(m+48,bottom+3,'Head of Training')
-    c.drawString(W-m-210,bottom+3,'Executive Director')
+        
+    # ---------------------------------
+    # Signatories' Names and Titles
+    # ---------------------------------
+
+    c.setFillColor(INK)
+
+    c.setFont("Times-Bold", 12)
+
+    c.drawString(
+        m + 48,
+        bottom + 16,
+        "NAME OF HEAD OF TRAINING"
+    )
+
+    c.drawString(
+        W - m - 210,
+        bottom + 16,
+        "NAME OF EXECUTIVE DIRECTOR"
+    )
+
+    c.setFont("Times-Roman", 9)
+
+    c.drawString(
+        m + 48,
+        bottom + 3,
+        "Head of Training"
+    )
+
+    c.drawString(
+        W - m - 210,
+        bottom + 3,
+        "Executive Director"
+    )
 
     if not _asset(c,os.getenv('CERT_SEAL_PATH',''),W/2-34,bottom+10,68,68):
         c.setFillColor(HexColor('#D5A72B')); c.circle(W/2,bottom+46,30,stroke=0,fill=1)

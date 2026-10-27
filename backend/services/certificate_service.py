@@ -29,6 +29,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 LOGO_PATH = BASE_DIR / "assets" / "orbal_logo.png"
 
+TRAINING_SIGNATURE_PATH = ( BASE_DIR / "assets" / "training_signature.png")
+
+DIRECTOR_SIGNATURE_PATH = ( BASE_DIR / "assets" / "director_signature.png")
+
 def _date(value):
     if isinstance(value, datetime):
         return value.strftime('%d %B %Y')

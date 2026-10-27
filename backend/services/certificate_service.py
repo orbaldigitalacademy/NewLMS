@@ -243,13 +243,13 @@ def generate_certificate_pdf(
     c.drawString(
         m + 48,
         bottom + 16,
-        "NAME OF HEAD OF TRAINING"
+        "Kor Moses"
     )
 
     c.drawString(
         W - m - 210,
         bottom + 16,
-        "NAME OF EXECUTIVE DIRECTOR"
+        "Iorhen Dorcas"
     )
 
     c.setFont("Times-Roman", 9)

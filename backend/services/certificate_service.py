@@ -291,18 +291,50 @@ def generate_certificate_pdf(
     # 7. CERTIFICATE HEADING
     # ---------------------------------------------------
 
+    # Certificate heading
+    heading = "PROFESSIONAL CERTIFICATE"
+    heading_font = "Helvetica-Bold"
+    heading_size = 30
+    
     c.setFillColor(ORANGE)
-    c.setFont("Helvetica-Bold", 30)
+    c.setFont(heading_font, heading_size)
+    
     c.drawCentredString(
         CX,
         H - 172,
-        "PROFESSIONAL CERTIFICATE",
+        heading
+    )
+
+    # Gold underline matching heading width
+    heading_width = c.stringWidth(
+        heading,
+        heading_font,
+        heading_size
+    )
+    
+    c.setStrokeColor(GOLD)
+    c.setLineWidth(1.5)
+    
+    c.line(
+        CX - heading_width / 2,
+        H - 186,
+        CX + heading_width / 2,
+        H - 186
     )
 
     # Decorative gold divider
     c.setStrokeColor(GOLD)
     c.setLineWidth(1.2)
     c.line(CX - 105, H - 186, CX + 105, H - 186)
+
+    line_width = heading_width + 30
+
+    c.line(
+        CX - line_width / 2,
+        H - 186,
+        CX + line_width / 2,
+        H - 186
+    )
 
     # ---------------------------------------------------
     # 8. COURSE TITLE

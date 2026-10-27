@@ -200,8 +200,37 @@ def generate_certificate_pdf(
     c.setFont('Times-Roman',10)
     c.drawString(W-m-210,bottom+69,_date(completion_date))
 
-    _asset(c,os.getenv('CERT_TRAINING_SIGNATURE_PATH',''),m+47,bottom+28,95,35)
-    _asset(c,os.getenv('CERT_DIRECTOR_SIGNATURE_PATH',''),W-m-210,bottom+28,95,35)
+       # ---------------------------------
+    # Head of Training Signature
+    # ---------------------------------
+
+    training_signature = str(TRAINING_SIGNATURE_PATH)
+
+    if not _asset(
+        c,
+        training_signature,
+        m + 47,
+        bottom + 28,
+        95,
+        35
+    ):
+        print("Head of Training signature not found")
+
+    # ---------------------------------
+    # Executive Director Signature
+    # ---------------------------------
+
+    director_signature = str(DIRECTOR_SIGNATURE_PATH)
+
+    if not _asset(
+        c,
+        director_signature,
+        W - m - 210,
+        bottom + 28,
+        95,
+        35
+    ):
+        print("Executive Director signature not found")
     c.setFillColor(INK); c.setFont('Times-Bold',12)
     c.drawString(m+48,bottom+16,os.getenv('CERT_TRAINING_NAME','Head of Training'))
     c.drawString(W-m-210,bottom+16,os.getenv('CERT_DIRECTOR_NAME','Executive Director'))

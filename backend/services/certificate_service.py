@@ -258,7 +258,7 @@ def generate_certificate_pdf(
         c,
         ACADEMY,
         "Helvetica-Bold",
-        25,
+        27,
         18,
         W - 300,
     )
@@ -292,7 +292,7 @@ def generate_certificate_pdf(
     # ---------------------------------------------------
 
     c.setFillColor(ORANGE)
-    c.setFont("Helvetica-Bold", 27)
+    c.setFont("Helvetica-Bold", 30)
     c.drawCentredString(
         CX,
         H - 172,
@@ -314,7 +314,7 @@ def generate_certificate_pdf(
         c,
         course_text,
         "Helvetica-Bold",
-        18,
+        20,
         12,
         W - 170,
     )
@@ -348,14 +348,14 @@ def generate_certificate_pdf(
     c.drawCentredString(
         CX,
         H - 275,
-        "This certificate is proudly presented to",
+        "This is to certify that",
     )
 
     name_size = _fit(
         c,
         student_name,
         "Times-BoldItalic",
-        35,
+        37,
         20,
         W - 230,
     )
@@ -383,8 +383,8 @@ def generate_certificate_pdf(
 
     description = (
         course_description
-        or "For successfully completing the prescribed professional "
-           "training and assessment requirements."
+        or "has successfully completed a 3-month prosessinal training in data analytics coverig Excel, Power BI, Tableau
+        SQL, Python and SPSS."
     )
 
     desc_lines = _wrap(
@@ -427,7 +427,7 @@ def generate_certificate_pdf(
         )
 
     c.setFillColor(MUTED)
-    c.setFont("Helvetica", 9)
+    c.setFont("Helvetica", 12)
     c.drawRightString(
         W - 93,
         bottom + 83,
@@ -435,7 +435,7 @@ def generate_certificate_pdf(
     )
 
     c.setFillColor(INK)
-    c.setFont("Helvetica-Bold", 10)
+    c.setFont("Helvetica-Bold", 12)
     c.drawRightString(
         W - 93,
         bottom + 68,
@@ -505,7 +505,7 @@ def generate_certificate_pdf(
     )
 
     c.setFillColor(NAVY)
-    c.setFont("Helvetica-Bold", 10)
+    c.setFont("Helvetica-Bold", 12)
 
     c.drawString(
         training_x,
@@ -520,7 +520,7 @@ def generate_certificate_pdf(
     )
 
     c.setFillColor(MUTED)
-    c.setFont("Helvetica", 8)
+    c.setFont("Helvetica", 12)
 
     c.drawString(
         training_x,

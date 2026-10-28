@@ -24,7 +24,7 @@ class Enrollment(BaseDocument):
     progress: float = 0.0
     completed_lessons: List[str] = Field(default_factory=list)
     is_completed: bool = False
-    completed_at: Optional[str] = None
+    completed_at: datetime | None = None
 
     # Assessment progress
     completed_quizzes: List[str] = Field(default_factory=list)
@@ -35,7 +35,7 @@ class Enrollment(BaseDocument):
     
     # Final course completion
     course_completed: bool = False
-    course_completed_at: Optional[str] = None
+    course_completed_at: datetime | None = None
     
 
 class AdminEnrollRequest(BaseModel):

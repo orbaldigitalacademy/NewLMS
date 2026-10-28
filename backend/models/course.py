@@ -278,3 +278,4 @@ class Enrollment(BaseDocument):
     is_completed: bool = False
     completed_at: Optional[str] = None
     certificate_url: Optional[str] = None
+    enrollment_date: datetime | None = None

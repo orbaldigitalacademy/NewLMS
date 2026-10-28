@@ -62,9 +62,8 @@ def _date(value):
         except ValueError:
             return value
 
-    return datetime.now(timezone.utc).strftime("%d %B %Y")
-
-
+    return "Not available"
+    
 def _asset(c, path, x, y, w, h):
     if not path or not os.path.isfile(path):
         return False

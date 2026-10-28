@@ -10,6 +10,7 @@ from auth import require_admin
 from database import db
 from models.course import Course
 from models.enrollment import AdminEnrollRequest
+from models.enrollment import Enrollment
 from models.payment import Payment, PaymentReviewRequest
 from models.testimonial import Testimonial
 from models.user import (AdminCreateUser, User, UserPublic, UserRole,)

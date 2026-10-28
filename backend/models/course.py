@@ -1,7 +1,7 @@
 from typing import Optional, List, Literal, Union
 from pydantic import BaseModel, Field, AliasChoices, ConfigDict
 from .base import BaseDocument
-
+from datetime import datetime
 
 LevelType = Literal["beginner", "intermediate", "advanced"]
 
@@ -279,3 +279,5 @@ class Enrollment(BaseDocument):
     completed_at: Optional[str] = None
     certificate_url: Optional[str] = None
     enrollment_date: datetime | None = None
+    
+Enrollment.model_rebuild()

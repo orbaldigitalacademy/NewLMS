@@ -267,7 +267,7 @@ def generate_certificate_pdf(
     c.setFont("Helvetica-Bold", academy_size)
     c.drawCentredString(CX + 28, H - 91, ACADEMY)
 
-    c.setFillColor(MUTED)
+    c.setFillColor(Green
     c.setFont("Helvetica", 10)
     c.drawCentredString(
         CX + 28,
@@ -280,7 +280,7 @@ def generate_certificate_pdf(
     # ---------------------------------------------------
 
     if certificate_id:
-        c.setFillColor(MUTED)
+        c.setFillColor(Green)
         c.setFont("Helvetica", 8)
         c.drawRightString(
             W - 67,
@@ -416,7 +416,7 @@ def generate_certificate_pdf(
 
     description = (
         course_description
-        or "has successfully completed a 3-month prosessinal training in data analytics coverig Excel, Power BI, Tableau, SQL, Python and SPSS."
+        or "has successfully completed a 3-month professional training in data analytics coverig Excel, Power BI, Tableau, SQL, Python and SPSS."
     )
 
     desc_lines = _wrap(

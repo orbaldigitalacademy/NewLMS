@@ -307,15 +307,26 @@ async def download_certificate(
         f"https://www.orbalacademy.com/verify/"
         f"{certificate['certificate_id']}"
     )
+    # Retrieve the actual enrollment date
+    enrollment_date = (
+        enrollment_doc.get("enrollment_date")
+        or enrollment_doc.get("created_at")
+    )
+
+    # Retrieve the certificate award date
+    award_date = certificate.get("issued_at")
+    
+    print("ENROLLMENT DATE:", enrollment_date)
+    print("AWARD DATE:", award_date)
 
     # 8. Generate PDF
     pdf_bytes = generate_certificate_pdf(
         student_name=user.name,
         course_title=course.title,
-        completion_date=enrollment.completed_at,
+        completion_date=award_date,
         certificate_id=certificate["certificate_id"],
         verification_url=verification_url,
-        enrollment_date=enrollment_doc.get("created_at"),
+        enrollment_date=enrollment_date,
     )
 
     # Verify PDF was generated correctly

@@ -57,8 +57,16 @@ async def _create_enrollment(user: User, course: Course) -> Enrollment:
         completed_lessons=[],
         progress=0.0,
     )
-
-    await db.enrollments.insert_one(enroll.to_mongo())
+    
+    # Convert enrollment model to MongoDB document
+    enrollment_data = enroll.to_mongo()
+    
+    # Record the actual LMS enrollment date
+    enrollment_data["enrollment_date"] = datetime.now(timezone.utc)
+    
+    # Save enrollment permanently in MongoDB
+    await db.enrollments.insert_one(enrollment_data)
+    
 
     await db.courses.update_one(
         {"_id": course.id},

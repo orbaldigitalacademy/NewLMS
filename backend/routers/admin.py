@@ -4,7 +4,6 @@ Implements every `/admin/*` endpoint referenced in the frontend `api.js`.
 """
 from datetime import datetime, timezone
 from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from auth import require_admin
@@ -13,14 +12,13 @@ from models.course import Course
 from models.enrollment import AdminEnrollRequest
 from models.payment import Payment, PaymentReviewRequest
 from models.testimonial import Testimonial
-from models.user import (
-    AdminCreateUser,
-    User,
-    UserPublic,
-    UserRole,
-)
+from models.user import (AdminCreateUser, User, UserPublic, UserRole,)
 from routers.enrollments import _create_enrollment
 from utils.security import hash_password
+
+from datetime import datetime, timezone
+from pydantic import BaseModel
+
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -182,6 +180,80 @@ async def admin_enroll(payload: AdminEnrollRequest, _: User = Depends(require_ad
     )
     return {"success": True, "enrollment_id": enrollment.id}
 
+# ============================================================
+# ADMIN: UPDATE STUDENT ENROLLMENT DATE
+# ============================================================
+
+@router.put("/enrollments/{enrollment_id}/date")
+async def update_enrollment_date(
+    enrollment_id: str,
+    payload: EnrollmentDateUpdate,
+    current: User = Depends(require_admin),
+):
+    # Validate the submitted date
+    try:
+        selected_date = datetime.strptime(
+            payload.enrollment_date,
+            "%Y-%m-%d"
+        ).replace(tzinfo=timezone.utc)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date. Use YYYY-MM-DD."
+        )
+
+    if selected_date.date() > datetime.now(timezone.utc).date():
+        raise HTTPException(
+            status_code=400,
+            detail="Enrollment date cannot be in the future."
+        )
+
+    # Find enrollment
+    enrollment = await db.enrollments.find_one({
+        "_id": enrollment_id
+    })
+
+    if not enrollment:
+        raise HTTPException(
+            status_code=404,
+            detail="Enrollment not found."
+        )
+
+    # Preserve the previous date for auditing
+    previous_date = (
+        enrollment.get("enrollment_date")
+        or enrollment.get("created_at")
+    )
+
+    # Update only the enrollment date
+    await db.enrollments.update_one(
+        {"_id": enrollment_id},
+        {
+            "$set": {
+                "enrollment_date": selected_date,
+                "enrollment_date_updated_at": datetime.now(timezone.utc),
+                "enrollment_date_updated_by": current.id,
+            }
+        }
+    )
+
+    # Keep an audit record
+    await db.enrollment_date_audit.insert_one({
+        "enrollment_id": enrollment_id,
+        "student_id": enrollment["user_id"],
+        "course_id": enrollment["course_id"],
+        "previous_date": previous_date,
+        "new_date": selected_date,
+        "updated_by": current.id,
+        "updated_at": datetime.now(timezone.utc),
+    })
+
+    return {
+        "success": True,
+        "message": "Enrollment date updated successfully.",
+        "enrollment_id": enrollment_id,
+        "enrollment_date": selected_date.isoformat(),
+    }
 
 # =====================================================================
 # PAYMENTS

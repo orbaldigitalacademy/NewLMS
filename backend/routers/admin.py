@@ -183,6 +183,50 @@ async def admin_enroll(payload: AdminEnrollRequest, _: User = Depends(require_ad
     return {"success": True, "enrollment_id": enrollment.id}
 
 # ============================================================
+# ADMIN: GET STUDENT COURSE ENROLLMENTS
+# ============================================================
+
+@router.get("/students/{student_id}/enrollments")
+async def get_student_enrollments(
+    student_id: str,
+    _: User = Depends(require_admin),
+):
+    student = await db.users.find_one({"_id": student_id})
+
+    if not student:
+        raise HTTPException(
+            status_code=404,
+            detail="Student not found"
+        )
+
+    enrollments = await db.enrollments.find({
+        "user_id": student_id
+    }).to_list(length=500)
+
+    results = []
+
+    for enrollment in enrollments:
+        date_value = (
+            enrollment.get("enrollment_date")
+            or enrollment.get("created_at")
+        )
+
+        results.append({
+            "id": str(enrollment["_id"]),
+            "course_id": enrollment.get("course_id"),
+            "course_title": enrollment.get("course_title"),
+            "enrollment_date": (
+                date_value.isoformat()
+                if isinstance(date_value, datetime)
+                else date_value
+            ),
+            "payment_status": enrollment.get("payment_status"),
+            "is_completed": enrollment.get("is_completed", False),
+        })
+
+    return results
+
+# ============================================================
 # ADMIN: UPDATE STUDENT ENROLLMENT DATE
 # ============================================================
 

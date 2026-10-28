@@ -30,6 +30,7 @@ INK = HexColor("#253047")
 MUTED = HexColor("#64748B")
 WHITE = HexColor("#FFFFFF")
 CREAM = HexColor("#FCFBF7")
+Green =HexColor("#14532D")
 
 
 # ---------------------------------------------------
@@ -252,7 +253,7 @@ def generate_certificate_pdf(
     # 5. ACADEMY NAME
     # ---------------------------------------------------
 
-    c.setFillColor(NAVY)
+    c.setFillColor(Green)
 
     academy_size = _fit(
         c,

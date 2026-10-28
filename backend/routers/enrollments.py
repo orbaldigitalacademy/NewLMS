@@ -27,12 +27,18 @@ class ProgressRequest(BaseModel):
 
 
 async def _create_enrollment(user: User, course: Course) -> Enrollment:
-    existing = await db.enrollments.find_one(
-        {"user_id": user.id, "course_id": course.id}
-    )
 
-    # If already enrolled, make sure access is granted
+    # Check whether the student is already enrolled
+    existing = await db.enrollments.find_one({
+        "user_id": user.id,
+        "course_id": course.id
+    })
+
+    # -----------------------------------------
+    # EXISTING ENROLLMENT
+    # -----------------------------------------
     if existing:
+
         await db.enrollments.update_one(
             {"_id": existing["_id"]},
             {
@@ -40,13 +46,37 @@ async def _create_enrollment(user: User, course: Course) -> Enrollment:
                     "payment_status": "approved",
                     "access_granted": True,
                 }
-            },
+            }
         )
 
-        updated = await db.enrollments.find_one({"_id": existing["_id"]})
+        # Preserve existing enrollment date
+        # Initialize it only if missing
+        if "enrollment_date" not in existing:
+            await db.enrollments.update_one(
+                {
+                    "_id": existing["_id"],
+                    "enrollment_date": {"$exists": False}
+                },
+                {
+                    "$set": {
+                        "enrollment_date": (
+                            existing.get("created_at")
+                            or datetime.now(timezone.utc)
+                        )
+                    }
+                }
+            )
+
+        updated = await db.enrollments.find_one({
+            "_id": existing["_id"]
+        })
+
         return Enrollment.from_mongo(updated)
 
-    # Create a new enrollment
+    # -----------------------------------------
+    # NEW ENROLLMENT
+    # -----------------------------------------
+
     enroll = Enrollment(
         user_id=user.id,
         course_id=course.id,
@@ -57,24 +87,26 @@ async def _create_enrollment(user: User, course: Course) -> Enrollment:
         completed_lessons=[],
         progress=0.0,
     )
-    
-    # Convert enrollment model to MongoDB document
-    enrollment_data = enroll.to_mongo()
-    
-    # Record the actual LMS enrollment date
-    enrollment_data["enrollment_date"] = datetime.now(timezone.utc)
-    
-    # Save enrollment permanently in MongoDB
-    await db.enrollments.insert_one(enrollment_data)
-    
 
+    enrollment_data = enroll.to_mongo()
+
+    # Store enrollment date permanently
+    enrollment_data["enrollment_date"] = datetime.now(timezone.utc)
+
+    await db.enrollments.insert_one(enrollment_data)
+
+    # Update course enrollment count
     await db.courses.update_one(
         {"_id": course.id},
-        {"$inc": {"enrollment_count": 1}}
+        {
+            "$inc": {
+                "enrollment_count": 1
+            }
+        }
     )
 
     return enroll
-
+    
 @router.post("/free", response_model=Enrollment)
 async def enroll_free(data: EnrollRequest, user: User = Depends(get_current_user)):
     doc = await db.courses.find_one({"_id": data.course_id})

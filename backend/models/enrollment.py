@@ -5,6 +5,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from .base import BaseDocument
+from datetime import datetime, timezone
 
 
 class Enrollment(BaseDocument):

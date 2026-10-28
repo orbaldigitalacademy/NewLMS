@@ -416,8 +416,7 @@ def generate_certificate_pdf(
 
     description = (
         course_description
-        or "has successfully completed a 3-month prosessinal training in data analytics coverig Excel, Power BI, Tableau
-        SQL, Python and SPSS."
+        or "has successfully completed a 3-month prosessinal training in data analytics coverig Excel, Power BI, Tableau, SQL, Python and SPSS."
     )
 
     desc_lines = _wrap(

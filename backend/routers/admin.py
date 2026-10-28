@@ -22,7 +22,9 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-
+class EnrollmentDateUpdate(BaseModel):
+    enrollment_date: str
+    
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 

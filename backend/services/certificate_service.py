@@ -284,7 +284,7 @@ def generate_certificate_pdf(
         c.drawRightString(
             W - 67,
             H - 67,
-            f"Certificate ID: {certificate_id}",
+            f"ID: {certificate_id}",
         )
 
     # ---------------------------------------------------

@@ -59,6 +59,7 @@ ALLOWED_FOLDERS = {
     "document": "lms/documents",
     "certificate": "lms/certificates",
     "thumbnail": "lms/thumbnails",
+    "proof": "lms/proofs",
 }
 ALLOWED_VIDEO_EXTENSIONS = {
     ".mp4",

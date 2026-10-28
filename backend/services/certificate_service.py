@@ -267,7 +267,7 @@ def generate_certificate_pdf(
     c.setFont("Helvetica-Bold", academy_size)
     c.drawCentredString(CX + 28, H - 91, ACADEMY)
 
-    c.setFillColor(Green
+    c.setFillColor(Green)
     c.setFont("Helvetica", 10)
     c.drawCentredString(
         CX + 28,

@@ -9,7 +9,8 @@ from pydantic import BaseModel
 
 from auth import get_current_user
 from database import db
-from models.course import Course, Enrollment
+from models.course import Course
+from models.enrollment import Enrollment
 from models.user import User
 from services.certificate_service import generate_certificate_pdf
 

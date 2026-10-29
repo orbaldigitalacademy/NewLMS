@@ -1,182 +1,36 @@
-# backend/services/alumni_email_service.py
-
-import os
+"""Resend API transport. Acceptance by Resend is not inbox delivery."""
 import html
-import logging
+import os
 import httpx
 
-from datetime import datetime, timezone
-from database import db
-
-logger = logging.getLogger(__name__)
-
-RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-ALUMNI_EMAIL_FROM = os.getenv(
-    "ALUMNI_EMAIL_FROM",
-    "Orbal Digital Academy <admin@orbalacademy.com>"
-)
-
-ALUMNI_DASHBOARD_URL = (
-    "https://www.orbalacademy.com/alumni/dashboard"
-)
+DASHBOARD_URL = os.getenv("ALUMNI_DASHBOARD_URL", "https://www.orbalacademy.com/alumni/dashboard")
 
 
-async def send_alumni_welcome_email(user_id: str):
-
-    # Atomically claim a pending email
-    profile = await db.alumni_profiles.find_one_and_update(
-        {
-            "user_id": user_id,
-            "welcome_email_status": {"$in": ["pending", "failed"]}
-        },
-        {
-            "$set": {
-                "welcome_email_status": "sending",
-                "email_attempted_at": datetime.now(
-                    timezone.utc
-                ).isoformat()
-            }
-        }
-    )
-
-    if not profile:
-        return {"status": "already_sent_or_processing"}
-
-    try:
-        if not RESEND_API_KEY:
-            raise RuntimeError("RESEND_API_KEY is missing")
-
-        user = await db.users.find_one({"_id": user_id})
-
-        if not user or not user.get("email"):
-            raise ValueError("Graduate email address not found")
-
-        student_name = html.escape(
-            user.get("name")
-            or user.get("full_name")
-            or "Graduate"
+async def send_welcome_email(job: dict) -> str:
+    api_key = os.getenv("RESEND_API_KEY")
+    sender = os.getenv("ALUMNI_EMAIL_FROM")
+    if not api_key or not sender:
+        raise RuntimeError("RESEND_API_KEY and ALUMNI_EMAIL_FROM are required")
+    name = html.escape(job.get("recipient_name") or "Graduate")
+    url = html.escape(DASHBOARD_URL, quote=True)
+    body = f"""<!doctype html><html><body style="margin:0;background:#f2f5fa;font-family:Arial,sans-serif;color:#253047">
+    <div style="max-width:620px;margin:28px auto;background:white;border-radius:12px;overflow:hidden">
+    <div style="background:#102B5B;color:white;padding:28px;text-align:center"><h2>ORBAL DIGITAL ACADEMY</h2><p>Alumni Network</p></div>
+    <div style="padding:30px"><h2 style="color:#14532D">Congratulations, {name}!</h2>
+    <p>You have completed your course requirements and passed your final assessment. Your Alumni Portal is now active.</p>
+    <p>Build your professional profile, showcase your portfolio, and explore alumni career opportunities.</p>
+    <p style="text-align:center;margin:30px 0"><a href="{url}" style="background:#102B5B;color:white;padding:14px 22px;border-radius:6px;text-decoration:none">Open Alumni Dashboard</a></p>
+    <p>Sign in using your existing LMS credentials.</p><p>Warm regards,<br><b>Orbal Digital Academy Team</b></p></div></div></body></html>"""
+    async with httpx.AsyncClient(timeout=25) as client:
+        response = await client.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
+                     "Idempotency-Key": job["idempotency_key"]},
+            json={"from": sender, "to": [job["recipient_email"]],
+                  "subject": "Welcome to the Orbal Digital Academy Alumni Network!", "html": body}
         )
-
-        email_html = f"""
-        <html>
-          <body style="font-family:Arial,sans-serif;
-                       background:#f3f6fa;padding:30px;">
-            <div style="max-width:600px;margin:auto;
-                        background:white;border-radius:12px;
-                        overflow:hidden;">
-
-              <div style="background:#102B5B;
-                          color:white;padding:28px;
-                          text-align:center;">
-                <h2>ORBAL DIGITAL ACADEMY</h2>
-                <p>Official Alumni Network</p>
-              </div>
-
-              <div style="padding:32px;color:#253047;">
-                <h2 style="color:#14532D;">
-                  Congratulations, {student_name}!
-                </h2>
-
-                <p>
-                  We are delighted to officially welcome you
-                  to the Orbal Digital Academy Alumni Network.
-                </p>
-
-                <p>
-                  Having successfully completed your training
-                  and passed your final assessment, your Alumni
-                  Portal has now been activated.
-                </p>
-
-                <p>Your alumni membership provides access to:</p>
-
-                <ul>
-                  <li>Professional alumni profile</li>
-                  <li>Portfolio and project showcase</li>
-                  <li>Career and internship opportunities</li>
-                  <li>Professional networking</li>
-                  <li>Alumni events and updates</li>
-                </ul>
-
-                <div style="text-align:center;margin:32px 0;">
-                  <a href="{ALUMNI_DASHBOARD_URL}"
-                     style="background:#102B5B;color:white;
-                            padding:14px 24px;
-                            text-decoration:none;
-                            border-radius:6px;">
-                    Access Alumni Dashboard
-                  </a>
-                </div>
-
-                <p>
-                  Sign in using your existing LMS credentials.
-                </p>
-
-                <p>
-                  We are proud of your achievement!
-                </p>
-
-                <p>
-                  Warm regards,<br>
-                  <strong>Orbal Digital Academy Team</strong>
-                </p>
-              </div>
-            </div>
-          </body>
-        </html>
-        """
-
-        async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.post(
-                "https://api.resend.com/emails",
-                headers={
-                    "Authorization": f"Bearer {RESEND_API_KEY}",
-                    "Content-Type": "application/json",
-                    "Idempotency-Key": f"alumni-welcome-{user_id}"
-                },
-                json={
-                    "from": ALUMNI_EMAIL_FROM,
-                    "to": [user["email"]],
-                    "subject": (
-                        "Congratulations! Your Orbal Digital "
-                        "Academy Alumni Portal Is Activated"
-                    ),
-                    "html": email_html
-                }
-            )
-
-            response.raise_for_status()
-            result = response.json()
-
-        await db.alumni_profiles.update_one(
-            {"user_id": user_id},
-            {
-                "$set": {
-                    "welcome_email_status": "sent",
-                    "welcome_email_sent_at": datetime.now(
-                        timezone.utc
-                    ).isoformat(),
-                    "welcome_email_id": result.get("id")
-                }
-            }
-        )
-
-        return {"status": "sent"}
-
-    except Exception as exc:
-        logger.exception(
-            "Alumni welcome email failed for %s",
-            user_id
-        )
-
-        await db.alumni_profiles.update_one(
-            {"user_id": user_id},
-            {
-                "$set": {
-                    "welcome_email_status": "failed",
-                    "welcome_email_error": str(exc)
-                }
-            }
-        )
-
-        return {"status": "failed"}
+        response.raise_for_status()
+        payload = response.json()
+        if not payload.get("id"):
+            raise RuntimeError("Resend did not return a message ID")
+        return payload["id"]

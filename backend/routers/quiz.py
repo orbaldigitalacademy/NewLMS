@@ -13,6 +13,10 @@ from models.quiz import (
     QuizAttempt,
 )
 from models.user import User
+from services.alumni_service import activate_alumni
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/quizzes",
@@ -605,6 +609,20 @@ async def submit_quiz(
                 }
             },
         )
+    # Activate alumni after successful final assessment
+    if passed and quiz.quiz_type == "final":
+        try:
+            await activate_alumni(
+                user_id=user.id,
+                course_id=quiz.course_id
+            )
+        except Exception:
+            logger.exception(
+                "Alumni activation failed for user %s, course %s",
+                user.id,
+                quiz.course_id
+            ) 
+            
     return {
         "attempt_id": attempt.id,
         "quiz_id": quiz.id,

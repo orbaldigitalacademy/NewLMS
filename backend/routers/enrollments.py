@@ -13,6 +13,10 @@ from models.course import Course
 from models.enrollment import Enrollment
 from models.user import User
 from services.certificate_service import generate_certificate_pdf
+from services.alumni_service import activate_alumni
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/enrollments", tags=["enrollments"])
 
@@ -248,9 +252,24 @@ async def update_progress(
     )
 
     # Return updated enrollment
+
     new_doc = await db.enrollments.find_one(
         {"_id": enrollment.id}
     )
+
+    # Activate alumni if all graduation conditions are met
+    if new_doc.get("is_completed") is True:
+        try:
+            await activate_alumni(
+                user_id=user.id,
+                course_id=course_id
+            )
+        except Exception:
+            logger.exception(
+                "Alumni activation failed for user %s, course %s",
+                user.id,
+                course_id
+            )
 
     return Enrollment.from_mongo(new_doc)
 

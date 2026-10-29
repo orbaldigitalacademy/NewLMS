@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from pymongo import ReturnDocument
 from database import db
-from services.alumni_email_service import send_welcome_email
+from services.alumni_email_service import send_alumni_welcome_email
 
 log = logging.getLogger(__name__)
 MAX_ATTEMPTS = 6

@@ -11,8 +11,8 @@ scheduler = AsyncIOScheduler()
 
 
 async def abandon_stale_payments():
-    """Mark payments still pending after 1 hour as abandoned."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    """Mark payments still pending after 24 hour as abandoned."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     result = await db.payments.update_many(
         {"status": "pending", "created_at": {"$lt": cutoff}},
         {"$set": {"status": "abandoned"}},

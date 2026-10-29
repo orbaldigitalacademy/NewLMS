@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 ALUMNI_EMAIL_FROM = os.getenv(
     "ALUMNI_EMAIL_FROM",
-    "Orbal Digital Academy <alumni@orbalacademy.com>"
+    "Orbal Digital Academy <admin@orbalacademy.com>"
 )
 
 ALUMNI_DASHBOARD_URL = (

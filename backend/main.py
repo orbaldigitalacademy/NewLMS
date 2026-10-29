@@ -10,6 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 from routers import testimonials
 from routers import uploads as uploads_router
 from routers.settings import router as settings_router
+from services.alumni_service import create_alumni_indexes
 
 
 ROOT_DIR = Path(__file__).parent
@@ -387,6 +388,8 @@ async def lifespan(_app: FastAPI):
         "certificate_id",
         unique=True
     )
+    await create_alumni_indexes()
+    print("Alumni profiles and email queue indexes initialized")
     
     yield
 

@@ -11,6 +11,7 @@ from routers import testimonials
 from routers import uploads as uploads_router
 from routers.settings import router as settings_router
 from services.alumni_service import create_alumni_indexes
+from routers import alumni
 
 
 ROOT_DIR = Path(__file__).parent
@@ -463,3 +464,4 @@ app.include_router(testimonials.router)
 app.include_router(uploads_router.router,prefix="/api",)
 app.include_router(profile.router, prefix="/api")
 app.include_router(fx_router, prefix="/api")
+app.include_router(alumni.router, prefix="/api")

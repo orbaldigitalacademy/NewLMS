@@ -75,16 +75,17 @@ def public_fields(p):
         "portfolio_url": p.get("portfolio_url", ""),
     }
 
-
 def private_fields(p):
     result = public_fields(p)
+
     result.update({
         "is_verified": bool(p.get("is_verified")),
         "is_public": bool(p.get("is_public")),
+        "hidden_by_admin": bool(p.get("hidden_by_admin", False)),
         "completed_course_ids": p.get("completed_course_ids", []),
     })
-    return result
 
+    return result
 
 @router.get("/public")
 async def alumni_directory():

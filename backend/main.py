@@ -16,7 +16,10 @@ from routers.alumni_management import (
     router as alumni_management_router,
     create_alumni_management_indexes,
 )
-
+from routers.alumni_networking import (
+    router as alumni_networking_router,
+    create_alumni_networking_indexes,
+)
 
 
 
@@ -400,6 +403,9 @@ async def lifespan(_app: FastAPI):
     await create_alumni_indexes()
     print("Alumni profiles and email queue indexes initialized")
     
+    await create_alumni_networking_indexes()
+    print("Alumni networking indexes initialized")
+    
     yield
 
     # --------------------
@@ -474,3 +480,4 @@ app.include_router(profile.router, prefix="/api")
 app.include_router(fx_router, prefix="/api")
 app.include_router(alumni.router, prefix="/api")
 app.include_router(alumni_management_router, prefix="/api")
+app.include_router( alumni_networking_router, prefix="/api")

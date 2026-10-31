@@ -12,6 +12,12 @@ from routers import uploads as uploads_router
 from routers.settings import router as settings_router
 from services.alumni_service import create_alumni_indexes
 from routers import alumni
+from routers.alumni_management import (
+    router as alumni_management_router,
+    create_alumni_management_indexes,
+)
+
+
 
 
 ROOT_DIR = Path(__file__).parent
@@ -383,6 +389,8 @@ async def lifespan(_app: FastAPI):
 
     await create_certificate_indexes()
     print("Certificate indexes initialized successfully")
+
+    await create_alumni_management_indexes()
     start_scheduler()
     
     await db.certificates.create_index(
@@ -465,3 +473,4 @@ app.include_router(uploads_router.router,prefix="/api",)
 app.include_router(profile.router, prefix="/api")
 app.include_router(fx_router, prefix="/api")
 app.include_router(alumni.router, prefix="/api")
+app.include_router(alumni_management_router, prefix="/api")

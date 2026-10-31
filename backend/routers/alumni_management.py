@@ -6,7 +6,7 @@ from uuid import uuid4
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from database import db
 from routers.alumni import require_admin, require_alumni
 
@@ -51,16 +51,45 @@ class ContentPayload(BaseModel):
             raise ValueError('External URL must begin with https:// or http://')
         return value
 
-    @field_validator('starts_at', 'ends_at', 'deadline')
+    @field_validator("starts_at", "ends_at", "deadline")
     @classmethod
     def validate_date(cls, value):
-        if value:
-            try:
-                datetime.fromisoformat(value.replace('Z', '+00:00'))
-            except ValueError:
-                raise ValueError('Date must be ISO 8601, e.g. 2026-11-01T14:00:00+01:00')
+        if not value:
+            return value
+    
+        try:
+            parsed = datetime.fromisoformat(
+                value.replace("Z", "+00:00")
+            )
+        except ValueError:
+            raise ValueError(
+                "Date must be a valid ISO 8601 datetime"
+            )
+    
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError(
+                "Date must include a timezone offset"
+            )
+    
         return value
 
+    @model_validator(mode="after")
+    def validate_event_dates(self):
+        if self.starts_at and self.ends_at:
+            start = datetime.fromisoformat(
+                self.starts_at.replace("Z", "+00:00")
+            )
+            end = datetime.fromisoformat(
+                self.ends_at.replace("Z", "+00:00")
+            )
+    
+            if end <= start:
+                raise ValueError(
+                    "Event end time must be after start time"
+                )
+    
+        return self
+        
 class VisibilityPayload(BaseModel):
     hidden_by_admin: bool
 

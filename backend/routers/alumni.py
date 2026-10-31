@@ -89,7 +89,7 @@ def private_fields(p):
 @router.get("/public")
 async def alumni_directory():
     profiles = await db.alumni_profiles.find({
-        "is_verified": True, "is_public": True
+        "is_verified": True, "is_public": True, "hidden_by_admin": {"$ne": True}  
     }).sort("full_name", 1).limit(200).to_list(length=200)
     return {"items": [public_fields(p) for p in profiles]}
 

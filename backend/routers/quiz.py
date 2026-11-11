@@ -1,4 +1,6 @@
 """Quiz and assessment router."""
+from fastapi import Body
+from pydantic import ValidationError
 from datetime import datetime, timezone
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -711,3 +713,162 @@ async def get_all_attempts(
         }
         for attempt in attempts
     ]
+
+# ============================================================
+# ADMIN: BULK IMPORT QUESTIONS INTO EXISTING QUIZ
+# ============================================================
+
+@router.post("/{quiz_id}/import-questions")
+async def import_quiz_questions(
+    quiz_id: str,
+    questions: list[dict] = Body(...),
+    admin: User = Depends(require_admin),
+):
+    """
+    Import multiple questions into an existing quiz.
+    Uses the existing QuizUpdate model for validation.
+    """
+
+    # 1. Check that the quiz exists
+    existing = await db.quizzes.find_one({"_id": quiz_id})
+
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail="Quiz not found",
+        )
+
+    # 2. Protect quizzes with existing student attempts
+    attempts = await db.quiz_attempts.count_documents(
+        {"quiz_id": quiz_id}
+    )
+
+    if attempts > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Questions cannot be modified after students "
+                "have submitted attempts. Create a new quiz."
+            ),
+        )
+
+    # 3. Validate batch size
+    if not questions or len(questions) > 500:
+        raise HTTPException(
+            status_code=400,
+            detail="Import between 1 and 500 questions.",
+        )
+
+    # 4. Read existing questions
+    existing_questions = existing.get("questions", [])
+
+    existing_ids = {
+        q["id"] for q in existing_questions
+    }
+
+    existing_texts = {
+        q["question"].strip().casefold()
+        for q in existing_questions
+    }
+
+    new_ids = set()
+    new_texts = set()
+
+    for index, question in enumerate(questions, start=1):
+
+        if not isinstance(question, dict):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Question {index} must be an object",
+            )
+
+        question_id = question.get("id")
+        question_text = question.get("question")
+
+        if not isinstance(question_id, str) or not question_id.strip():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Question {index} requires a valid ID",
+            )
+
+        if not isinstance(question_text, str) or not question_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Question {index} requires question text",
+            )
+
+        normalized_text = question_text.strip().casefold()
+
+        if (
+            question_id in existing_ids
+            or question_id in new_ids
+            or normalized_text in existing_texts
+            or normalized_text in new_texts
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Duplicate question at position {index}",
+            )
+
+        validate_question(
+            question_id,
+            question.get("question_type", "mcq"),
+            question.get("options", []),
+            question.get("correct_answer", ""),
+        )
+
+        new_ids.add(question_id)
+        new_texts.add(normalized_text)
+
+    # 5. Combine existing and imported questions
+    combined_questions = existing_questions + questions
+
+    # 6. Validate against the existing QuizUpdate schema
+    try:
+        validated = QuizUpdate.model_validate(
+            {"questions": combined_questions}
+        )
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=exc.errors(
+                include_context=False,
+                include_input=False,
+            ),
+        )
+
+    if validated.questions is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Question validation failed",
+        )
+
+    # 7. Save all questions to MongoDB
+    result = await db.quizzes.update_one(
+        {
+            "_id": quiz_id,
+            "questions": existing_questions,
+        },
+        {
+            "$set": {
+                "questions": [
+                    q.model_dump()
+                    for q in validated.questions
+                ],
+                "updated_at": now_utc(),
+            }
+        },
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Quiz was modified during import. Try again.",
+        )
+
+    return {
+        "message": "Questions imported successfully",
+        "quiz_id": quiz_id,
+        "imported": len(questions),
+        "total_questions": len(combined_questions),
+    }

@@ -1,8 +1,10 @@
 """Quiz and assessment router."""
-from fastapi import Body
-from pydantic import ValidationError
 from datetime import datetime, timezone
 from uuid import uuid4
+import secrets
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
+from pydantic import BaseModel, Field, ValidationError
 from fastapi import APIRouter, Depends, HTTPException, status
 from auth import get_current_user, require_admin
 from database import db
@@ -91,7 +93,7 @@ def is_answer_correct(question, submitted_answer):
     return submitted_answer == question.correct_answer
 
 
-def quiz_public_response(quiz: Quiz):
+def quiz_public_response(quiz: Quiz, include_questions=True):
     """Remove correct answers before sending quiz to students."""
     return {
         "id": quiz.id,
@@ -103,6 +105,7 @@ def quiz_public_response(quiz: Quiz):
         "passing_score": quiz.passing_score,
         "max_attempts": quiz.max_attempts,
         "is_published": quiz.is_published,
+        "question_count": len(quiz.questions),
         "questions": [
             {
                 "id": question.id,
@@ -111,7 +114,7 @@ def quiz_public_response(quiz: Quiz):
                 "options": question.options,
             }
             for question in quiz.questions
-        ],
+        ] if include_questions else [],
     }
 
 
@@ -310,6 +313,9 @@ async def update_quiz(
         exclude_unset=True
     )
     if "questions" in update_data:
+        if (await db.quiz_exam_sessions.count_documents({"quiz_id": quiz_id}, limit=1)
+                or await db.quiz_attempts.count_documents({"quiz_id": quiz_id}, limit=1)):
+            raise HTTPException(409, "Cannot change questions after an exam session or attempt exists")
         for question in update_data["questions"]:
             validate_question(
                 question["id"],
@@ -317,6 +323,15 @@ async def update_quiz(
                 question.get("options", []),
                 question["correct_answer"],
             )
+    if "max_attempts" in update_data and update_data["max_attempts"] != existing.get("max_attempts"):
+        if (await db.quiz_exam_sessions.count_documents({"quiz_id": quiz_id}, limit=1)
+                or await db.quiz_attempts.count_documents({"quiz_id": quiz_id}, limit=1)):
+            raise HTTPException(409, "Cannot change max attempts after exam sessions exist")
+        setting_doc = await db.quiz_exam_settings.find_one({"_id": quiz_id})
+        if setting_doc and setting_doc.get("exclude_previous_questions"):
+            current_count = setting_doc.get("questions_per_attempt") or len(existing.get("questions", []))
+            if current_count * update_data["max_attempts"] > len(existing.get("questions", [])):
+                raise HTTPException(400, "Not enough questions for non-repeating attempts")
     update_data["updated_at"] = now_utc()
     await db.quizzes.update_one(
         {"_id": quiz_id},
@@ -353,9 +368,165 @@ async def delete_quiz(
     await db.quiz_attempts.delete_many(
         {"quiz_id": quiz_id}
     )
+    await db.quiz_exam_sessions.delete_many({"quiz_id": quiz_id})
+    await db.quiz_exam_settings.delete_one({"_id": quiz_id})
     return {
         "message": "Quiz deleted successfully"
     }
+
+
+# ============================================================
+# RANDOM EXAM CONFIGURATION AND SESSION HELPERS
+# Settings are stored separately to keep models/quiz.py unchanged.
+# Sessions are persisted server-side; refreshes do not redraw questions.
+# ============================================================
+
+class ExamSettings(BaseModel):
+    questions_per_attempt: int = Field(default=0, ge=0, le=500)
+    randomize_questions: bool = False
+    shuffle_options: bool = False
+    exclude_previous_questions: bool = False
+
+
+def default_settings(quiz):
+    return ExamSettings(questions_per_attempt=len(quiz.questions)).model_dump()
+
+
+async def load_exam_settings(quiz):
+    config = await db.quiz_exam_settings.find_one({"_id": quiz.id})
+    return ExamSettings.model_validate(config or default_settings(quiz))
+
+
+def exam_count(quiz, settings):
+    return settings.questions_per_attempt or len(quiz.questions)
+
+
+async def assigned_exam(quiz, user):
+    """Create or recover this user's one active session for the next attempt."""
+    attempts_used = await db.quiz_attempts.count_documents({
+        "quiz_id": quiz.id, "user_id": user.id
+    })
+    if attempts_used >= quiz.max_attempts:
+        raise HTTPException(403, "You have reached the maximum number of attempts")
+
+    settings = await load_exam_settings(quiz)
+    count = exam_count(quiz, settings)
+    if count < 1 or count > len(quiz.questions):
+        raise HTTPException(409, "Question bank is smaller than the exam size")
+
+    # Deterministic key means concurrent GET requests converge on one session.
+    session_id = f"{quiz.id}:{user.id}:{attempts_used + 1}"
+    session = await db.quiz_exam_sessions.find_one({"_id": session_id})
+    if session is None:
+        previous_ids = set()
+        if settings.exclude_previous_questions:
+            previous = await db.quiz_exam_sessions.find({
+                "quiz_id": quiz.id, "user_id": user.id,
+                "state": "submitted",
+            }).to_list(length=None)
+            for old in previous:
+                previous_ids.update(old.get("question_ids", []))
+            # Also respect prior attempts recorded with selected question IDs.
+            legacy = await db.quiz_attempts.find({
+                "quiz_id": quiz.id, "user_id": user.id,
+            }).to_list(length=None)
+            for old in legacy:
+                previous_ids.update(old.get("question_ids", []))
+
+        pool = [q for q in quiz.questions if q.id not in previous_ids]
+        if len(pool) < count:
+            raise HTTPException(
+                409, "Not enough unseen questions for another attempt. "
+                     "Add more questions or change the exam settings."
+            )
+        sampled = (
+            secrets.SystemRandom().sample(pool, count)
+            if settings.randomize_questions else pool[:count]
+        )
+        option_orders = {}
+        if settings.shuffle_options:
+            for q in sampled:
+                if q.question_type in ("mcq", "truefalse"):
+                    option_orders[q.id] = secrets.SystemRandom().sample(
+                        list(q.options), len(q.options)
+                    )
+        proposed = {
+            "_id": session_id, "quiz_id": quiz.id, "user_id": user.id,
+            "attempt_number": attempts_used + 1,
+            "state": "active", "question_ids": [q.id for q in sampled],
+            "option_orders": option_orders, "created_at": now_utc(),
+        }
+        # Atomic upsert; identical _id guarantees one authoritative selection.
+        try:
+            await db.quiz_exam_sessions.update_one(
+                {"_id": session_id}, {"$setOnInsert": proposed}, upsert=True
+            )
+        except DuplicateKeyError:
+            # Another simultaneous request inserted the authoritative session.
+            pass
+        session = await db.quiz_exam_sessions.find_one({"_id": session_id})
+
+    if session["state"] != "active":
+        raise HTTPException(409, "This attempt is already being submitted")
+    selected_map = {q.id: q for q in quiz.questions}
+    if any(qid not in selected_map for qid in session["question_ids"]):
+        raise HTTPException(409, "Exam bank changed after attempt started")
+
+    response = quiz_public_response(quiz, include_questions=False)
+    response["questions"] = [
+        {
+            "id": selected_map[qid].id,
+            "question": selected_map[qid].question,
+            "question_type": selected_map[qid].question_type,
+            "options": session.get("option_orders", {}).get(
+                qid, selected_map[qid].options
+            ),
+        }
+        for qid in session["question_ids"]
+    ]
+    response["attempts_used"] = attempts_used
+    response["attempts_remaining"] = max(quiz.max_attempts - attempts_used, 0)
+    response["session_id"] = session_id
+    return response
+
+
+@router.get("/admin/{quiz_id}/exam-settings")
+async def get_exam_settings(quiz_id: str, admin: User = Depends(require_admin)):
+    doc = await db.quizzes.find_one({"_id": quiz_id})
+    if not doc:
+        raise HTTPException(404, "Quiz not found")
+    quiz = Quiz.from_mongo(doc)
+    return (await load_exam_settings(quiz)).model_dump()
+
+
+@router.put("/admin/{quiz_id}/exam-settings")
+async def save_exam_settings(
+    quiz_id: str, payload: ExamSettings,
+    admin: User = Depends(require_admin),
+):
+    doc = await db.quizzes.find_one({"_id": quiz_id})
+    if not doc:
+        raise HTTPException(404, "Quiz not found")
+    quiz = Quiz.from_mongo(doc)
+    count = exam_count(quiz, payload)
+    if count < 1 or count > len(quiz.questions):
+        raise HTTPException(400, "Questions per attempt must be between 1 and bank size")
+    if payload.exclude_previous_questions and count * quiz.max_attempts > len(quiz.questions):
+        raise HTTPException(
+            400, f"For {quiz.max_attempts} non-overlapping attempts of {count} "
+                 f"questions, import at least {count * quiz.max_attempts} questions."
+        )
+    # Prevent a new configuration from changing already assigned exams.
+    if await db.quiz_exam_sessions.count_documents({"quiz_id": quiz_id}, limit=1):
+        raise HTTPException(409, "Exam sessions already exist. Create a new quiz to change these settings.")
+    if await db.quiz_attempts.count_documents({"quiz_id": quiz_id}, limit=1):
+        raise HTTPException(409, "Student attempts already exist. Create a new quiz to change these settings.")
+    settings = payload.model_dump()
+    await db.quiz_exam_settings.update_one(
+        {"_id": quiz_id}, {"$set": settings}, upsert=True
+    )
+    return settings
+
 
 # ============================================================
 # STUDENT: GET ALL QUIZZES FOR A COURSE
@@ -404,7 +575,7 @@ async def get_course_quizzes(
 
     return [
         quiz_public_response(
-            Quiz.from_mongo(doc)
+            Quiz.from_mongo(doc), include_questions=False
         )
         for doc in quiz_docs
     ]
@@ -447,7 +618,7 @@ async def get_lesson_quiz(
         quiz,
         user,
     )
-    return quiz_public_response(quiz)
+    return await assigned_exam(quiz, user)
 
 
 # ============================================================
@@ -475,26 +646,7 @@ async def get_quiz(
         quiz,
         user,
     )
-    # Count attempts
-    attempts_count = await db.quiz_attempts.count_documents(
-        {
-            "quiz_id": quiz.id,
-            "user_id": user.id,
-        }
-    )
-    if attempts_count >= quiz.max_attempts:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You have reached the maximum number of attempts",
-        )
-    response = quiz_public_response(quiz)
-    response["attempts_used"] = attempts_count
-    response["attempts_remaining"] = max(
-        quiz.max_attempts - attempts_count,
-        0,
-    )
-    return response
-
+    return await assigned_exam(quiz, user)
 
 # ============================================================
 # STUDENT: SUBMIT QUIZ
@@ -523,60 +675,62 @@ async def submit_quiz(
         quiz,
         user,
     )
-    # Check attempts
-    attempts_count = await db.quiz_attempts.count_documents(
-        {
-            "quiz_id": quiz.id,
-            "user_id": user.id,
-        }
-    )
+    # A GET of the exam creates the persistent assigned question set.
+    # If the student posts without GET, reject instead of silently sampling.
+    attempts_count = await db.quiz_attempts.count_documents({
+        "quiz_id": quiz.id, "user_id": user.id,
+    })
     if attempts_count >= quiz.max_attempts:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Maximum quiz attempts reached",
-        )
-    # Ensure answers only contain actual question IDs
-    question_map = {
-        question.id: question
-        for question in quiz.questions
-    }
-    for question_id in payload.answers:
-        if question_id not in question_map:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid question ID: {question_id}",
-            )
-    # Calculate score
-    total_questions = len(quiz.questions)
-    if total_questions == 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Quiz contains no questions",
-        )
-    correct_count = 0
-    for question in quiz.questions:
-        submitted_answer = payload.answers.get(
-            question.id
-        )
-        if is_answer_correct(question, submitted_answer):
-            correct_count += 1
-    score = round(
-        (correct_count / total_questions) * 100,
-        2,
+        raise HTTPException(403, "Maximum quiz attempts reached")
+    session_id = f"{quiz.id}:{user.id}:{attempts_count + 1}"
+    session = await db.quiz_exam_sessions.find_one({"_id": session_id})
+    if not session or session.get("state") != "active":
+        raise HTTPException(409, "Open the exam first; no active attempt found")
+
+    selected_ids = session["question_ids"]
+    question_map = {q.id: q for q in quiz.questions}
+    if any(qid not in question_map for qid in selected_ids):
+        raise HTTPException(409, "Exam question bank changed")
+    if any(qid not in selected_ids for qid in payload.answers):
+        raise HTTPException(400, "Answers contain questions not assigned to this attempt")
+    total_questions = len(selected_ids)
+    if not total_questions:
+        raise HTTPException(400, "Exam contains no assigned questions")
+
+    correct_count = sum(
+        is_answer_correct(question_map[qid], payload.answers.get(qid))
+        for qid in selected_ids
     )
+    score = round(correct_count / total_questions * 100, 2)
     passed = score >= quiz.passing_score
-    attempt = QuizAttempt(
-        id=str(uuid4()),
-        quiz_id=quiz.id,
-        course_id=quiz.course_id,
-        lesson_id=quiz.lesson_id,
-        user_id=user.id,
-        answers=payload.answers,
-        score=score,
-        passed=passed,
+
+    # Acquire submission lock atomically; blocks simultaneous double submission.
+    locked = await db.quiz_exam_sessions.find_one_and_update(
+        {"_id": session_id, "state": "active"},
+        {"$set": {"state": "submitting", "submitted_at": now_utc()}},
+        return_document=ReturnDocument.AFTER,
     )
-    await db.quiz_attempts.insert_one(
-        attempt.to_mongo()
+    if not locked:
+        raise HTTPException(409, "This examination has already been submitted")
+
+    attempt = QuizAttempt(
+        id=str(uuid4()), quiz_id=quiz.id,
+        course_id=quiz.course_id, lesson_id=quiz.lesson_id,
+        user_id=user.id, answers=payload.answers, score=score, passed=passed,
+    )
+    attempt_doc = attempt.to_mongo()
+    attempt_doc["question_ids"] = selected_ids
+    attempt_doc["session_id"] = session_id
+    try:
+        await db.quiz_attempts.insert_one(attempt_doc)
+    except Exception:
+        await db.quiz_exam_sessions.update_one(
+            {"_id": session_id, "state": "submitting"},
+            {"$set": {"state": "active"}, "$unset": {"submitted_at": ""}},
+        )
+        raise
+    await db.quiz_exam_sessions.update_one(
+        {"_id": session_id}, {"$set": {"state": "submitted"}}
     )
     # --------------------------------------------------------
     # If a lesson quiz is passed, record quiz completion.
@@ -715,160 +869,51 @@ async def get_all_attempts(
     ]
 
 # ============================================================
-# ADMIN: BULK IMPORT QUESTIONS INTO EXISTING QUIZ
+# ADMIN: IMPORT JSON QUESTIONS (for your existing import button)
 # ============================================================
-
 @router.post("/{quiz_id}/import-questions")
-async def import_quiz_questions(
-    quiz_id: str,
-    questions: list[dict] = Body(...),
-    admin: User = Depends(require_admin),
+async def import_questions(
+    quiz_id: str, questions: list[dict], admin: User = Depends(require_admin)
 ):
-    """
-    Import multiple questions into an existing quiz.
-    Uses the existing QuizUpdate model for validation.
-    """
-
-    # 1. Check that the quiz exists
     existing = await db.quizzes.find_one({"_id": quiz_id})
-
     if not existing:
-        raise HTTPException(
-            status_code=404,
-            detail="Quiz not found",
-        )
-
-    # 2. Protect quizzes with existing student attempts
-    attempts = await db.quiz_attempts.count_documents(
-        {"quiz_id": quiz_id}
-    )
-
-    if attempts > 0:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "Questions cannot be modified after students "
-                "have submitted attempts. Create a new quiz."
-            ),
-        )
-
-    # 3. Validate batch size
+        raise HTTPException(404, "Quiz not found")
+    if await db.quiz_exam_sessions.count_documents({"quiz_id": quiz_id}, limit=1):
+        raise HTTPException(409, "Cannot import after an examination session has started")
+    if await db.quiz_attempts.count_documents({"quiz_id": quiz_id}, limit=1):
+        raise HTTPException(409, "Cannot import after student attempts exist")
     if not questions or len(questions) > 500:
-        raise HTTPException(
-            status_code=400,
-            detail="Import between 1 and 500 questions.",
-        )
-
-    # 4. Read existing questions
-    existing_questions = existing.get("questions", [])
-
-    existing_ids = {
-        q["id"] for q in existing_questions
-    }
-
-    existing_texts = {
-        q["question"].strip().casefold()
-        for q in existing_questions
-    }
-
-    new_ids = set()
-    new_texts = set()
-
-    for index, question in enumerate(questions, start=1):
-
-        if not isinstance(question, dict):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Question {index} must be an object",
-            )
-
-        question_id = question.get("id")
-        question_text = question.get("question")
-
+        raise HTTPException(400, "Import 1 to 500 questions at a time")
+    previous = existing.get("questions", [])
+    seen_ids = {q["id"] for q in previous}
+    seen_text = {q["question"].strip().casefold() for q in previous}
+    for position, q in enumerate(questions, 1):
+        if not isinstance(q, dict):
+            raise HTTPException(400, f"Question {position} must be an object")
+        question_id, question_text = q.get("id"), q.get("question")
         if not isinstance(question_id, str) or not question_id.strip():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Question {index} requires a valid ID",
-            )
-
+            raise HTTPException(400, f"Question {position} requires an id")
         if not isinstance(question_text, str) or not question_text.strip():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Question {index} requires question text",
-            )
-
-        normalized_text = question_text.strip().casefold()
-
-        if (
-            question_id in existing_ids
-            or question_id in new_ids
-            or normalized_text in existing_texts
-            or normalized_text in new_texts
-        ):
-            raise HTTPException(
-                status_code=409,
-                detail=f"Duplicate question at position {index}",
-            )
-
+            raise HTTPException(400, f"Question {position} requires text")
+        key = question_text.strip().casefold()
+        if question_id in seen_ids or key in seen_text:
+            raise HTTPException(409, f"Duplicate question at position {position}")
+        seen_ids.add(question_id)
+        seen_text.add(key)
         validate_question(
-            question_id,
-            question.get("question_type", "mcq"),
-            question.get("options", []),
-            question.get("correct_answer", ""),
+            question_id, q.get("question_type", "mcq"),
+            q.get("options", []), q.get("correct_answer", ""),
         )
-
-        new_ids.add(question_id)
-        new_texts.add(normalized_text)
-
-    # 5. Combine existing and imported questions
-    combined_questions = existing_questions + questions
-
-    # 6. Validate against the existing QuizUpdate schema
     try:
-        validated = QuizUpdate.model_validate(
-            {"questions": combined_questions}
-        )
+        validated = QuizUpdate.model_validate({"questions": previous + questions})
+        parsed = [q.model_dump() for q in validated.questions]
     except ValidationError as exc:
-        raise HTTPException(
-            status_code=422,
-            detail=exc.errors(
-                include_context=False,
-                include_input=False,
-            ),
-        )
-
-    if validated.questions is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Question validation failed",
-        )
-
-    # 7. Save all questions to MongoDB
+        raise HTTPException(422, "Imported questions do not match the Quiz model: " + str(exc)[:600])
     result = await db.quizzes.update_one(
-        {
-            "_id": quiz_id,
-            "questions": existing_questions,
-        },
-        {
-            "$set": {
-                "questions": [
-                    q.model_dump()
-                    for q in validated.questions
-                ],
-                "updated_at": now_utc(),
-            }
-        },
+        {"_id": quiz_id, "questions": previous},
+        {"$set": {"questions": parsed, "updated_at": now_utc()}},
     )
-
-    if result.matched_count == 0:
-        raise HTTPException(
-            status_code=409,
-            detail="Quiz was modified during import. Try again.",
-        )
-
-    return {
-        "message": "Questions imported successfully",
-        "quiz_id": quiz_id,
-        "imported": len(questions),
-        "total_questions": len(combined_questions),
-    }
+    if not result.matched_count:
+        raise HTTPException(409, "Quiz was changed during import; retry")
+    return {"message": "Questions imported successfully", "imported": len(questions),
+            "total_questions": len(parsed), "quiz_id": quiz_id}

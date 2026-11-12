@@ -1,5 +1,5 @@
 """Quiz and assessment router."""
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from uuid import uuid4
 import secrets
 from pymongo import ReturnDocument
@@ -312,6 +312,11 @@ async def update_quiz(
     update_data = payload.model_dump(
         exclude_unset=True
     )
+    if "questions" in update_data and (
+        await db.quiz_exam_sessions.count_documents({"quiz_id": quiz_id}, limit=1)
+        or await db.quiz_attempts.count_documents({"quiz_id": quiz_id}, limit=1)
+    ):
+        raise HTTPException(409, "Cannot modify questions after exam sessions exist")
     if "questions" in update_data:
         if (await db.quiz_exam_sessions.count_documents({"quiz_id": quiz_id}, limit=1)
                 or await db.quiz_attempts.count_documents({"quiz_id": quiz_id}, limit=1)):
@@ -370,6 +375,7 @@ async def delete_quiz(
     )
     await db.quiz_exam_sessions.delete_many({"quiz_id": quiz_id})
     await db.quiz_exam_settings.delete_one({"_id": quiz_id})
+    await db.quiz_question_topics.delete_one({"_id": quiz_id})
     return {
         "message": "Quiz deleted successfully"
     }
@@ -386,6 +392,142 @@ class ExamSettings(BaseModel):
     randomize_questions: bool = False
     shuffle_options: bool = False
     exclude_previous_questions: bool = False
+    duration_minutes: int = Field(default=120, ge=1, le=480)
+    subject_counts: dict[str, int] = Field(default_factory=dict)
+
+
+SUBJECTS = ("Excel", "Power BI", "Tableau", "SQL", "Python", "SPSS")
+
+
+def utc_date(value):
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+def public_session_status(session):
+    return {
+        "session_id": session["_id"],
+        "deadline_at": utc_date(session["deadline_at"]).isoformat(),
+        "server_time": now_utc().isoformat(),
+        "saved_answers": session.get("saved_answers", {}),
+        "session_state": session["state"],
+        "duration_minutes": session.get("duration_minutes", 120),
+    }
+
+
+def choose_questions(quiz, settings, previous_ids, topics):
+    count = exam_count(quiz, settings)
+    pool = [q for q in quiz.questions if q.id not in previous_ids]
+    if len(pool) < count:
+        raise HTTPException(409, "Not enough unseen questions for this attempt")
+    randomizer = secrets.SystemRandom()
+    counts = settings.subject_counts
+    if not counts:
+        return randomizer.sample(pool, count) if settings.randomize_questions else pool[:count]
+    selected = []
+    chosen = set()
+    for subject in SUBJECTS:
+        need = counts.get(subject, 0)
+        eligible = [q for q in pool if topics.get(q.id) == subject]
+        if len(eligible) < need:
+            raise HTTPException(409, f"Not enough unseen {subject} questions: need {need}, have {len(eligible)}")
+        drawn = randomizer.sample(eligible, need) if settings.randomize_questions else eligible[:need]
+        selected.extend(drawn)
+        chosen.update(q.id for q in drawn)
+    if len(selected) != count:
+        raise HTTPException(409, "Subject counts must sum to the exam size")
+    if settings.randomize_questions:
+        randomizer.shuffle(selected)
+    return selected
+
+
+async def finalize_session(quiz, user, session, *, timed_out=False, submitted_answers=None):
+    """One authoritative grading path for manual and timed-out submissions."""
+    sid = session["_id"]
+    deadline = utc_date(session["deadline_at"])
+    if not timed_out and now_utc() >= deadline:
+        timed_out = True
+    locked = await db.quiz_exam_sessions.find_one_and_update(
+        {"_id": sid, "state": "active"},
+        {"$set": {"state": "submitting", "submitted_at": now_utc()}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not locked:
+        existing = await db.quiz_attempts.find_one({"session_id": sid})
+        if existing:
+            return attempt_result(existing, quiz, already_submitted=True)
+        raise HTTPException(409, "Exam submission is being processed; retry shortly")
+    if now_utc() >= utc_date(locked["deadline_at"]):
+        timed_out = True
+    selected_ids = locked["question_ids"]
+    qmap = {q.id: q for q in quiz.questions}
+    if any(qid not in qmap for qid in selected_ids):
+        await db.quiz_exam_sessions.update_one({"_id": sid, "state": "submitting"}, {"$set": {"state": "active"}})
+        raise HTTPException(409, "Question bank changed after exam began")
+    answers = dict(locked.get("saved_answers", {}))
+    # Manual final submission may include a last un-saved change.
+    # Once the timer expires, only previously saved answers count.
+    if not timed_out and submitted_answers is not None:
+        if any(qid not in selected_ids for qid in submitted_answers):
+            await db.quiz_exam_sessions.update_one({"_id": sid, "state": "submitting"}, {"$set": {"state": "active"}})
+            raise HTTPException(400, "Submitted answers contain unassigned questions")
+        answers.update(submitted_answers)
+    correct = sum(is_answer_correct(qmap[qid], answers.get(qid)) for qid in selected_ids)
+    score = round(100 * correct / len(selected_ids), 2)
+    passed = score >= quiz.passing_score
+    attempt = QuizAttempt(
+        id=sid, quiz_id=quiz.id, course_id=quiz.course_id,
+        lesson_id=quiz.lesson_id, user_id=user.id, answers=answers,
+        score=score, passed=passed,
+    )
+    doc = attempt.to_mongo()
+    doc.update({"question_ids": selected_ids, "session_id": sid,
+                "timed_out": timed_out, "correct_count": correct})
+    try:
+        await db.quiz_attempts.update_one({"session_id": sid}, {"$setOnInsert": doc}, upsert=True)
+        await db.quiz_exam_sessions.update_one(
+            {"_id": sid}, {"$set": {"state": "submitted", "saved_answers": answers, "timed_out": timed_out}}
+        )
+    except Exception:
+        # A retry can recover if an insert succeeded before a later failure.
+        if not await db.quiz_attempts.find_one({"session_id": sid}):
+            await db.quiz_exam_sessions.update_one({"_id": sid, "state": "submitting"}, {"$set": {"state": "active"}})
+        raise
+    if passed and quiz.quiz_type == "lesson":
+        await db.enrollments.update_one(
+            {"user_id": user.id, "course_id": quiz.course_id},
+            {"$addToSet": {"completed_quizzes": quiz.id}}
+        )
+    if passed and quiz.quiz_type == "final":
+        await db.enrollments.update_one(
+            {"user_id": user.id, "course_id": quiz.course_id},
+            {"$set": {"course_completed": True, "course_completed_at": now_utc(),
+                      "final_quiz_id": quiz.id, "final_quiz_score": score}}
+        )
+        try:
+            await activate_alumni(user_id=user.id, course_id=quiz.course_id)
+        except Exception:
+            logger.exception("Alumni activation failed for %s", user.id)
+    return attempt_result(doc, quiz)
+
+
+def attempt_result(doc, quiz, already_submitted=False):
+    return {
+        "attempt_id": doc["_id"], "quiz_id": quiz.id, "score": doc["score"],
+        "passed": doc["passed"], "passing_score": quiz.passing_score,
+        "correct_answers": doc.get("correct_count"),
+        "total_questions": len(doc.get("question_ids", [])),
+        "timed_out": doc.get("timed_out", False),
+        "already_submitted": already_submitted,
+        "message": "You passed the examination" if doc["passed"] else "Examination not passed",
+    }
+
+
+class AnswerSave(BaseModel):
+    session_id: str
+    question_id: str
+    answer: str
 
 
 def default_settings(quiz):
@@ -402,91 +544,63 @@ def exam_count(quiz, settings):
 
 
 async def assigned_exam(quiz, user):
-    """Create or recover this user's one active session for the next attempt."""
-    attempts_used = await db.quiz_attempts.count_documents({
-        "quiz_id": quiz.id, "user_id": user.id
-    })
+    attempts_used = await db.quiz_attempts.count_documents({"quiz_id": quiz.id, "user_id": user.id})
     if attempts_used >= quiz.max_attempts:
-        raise HTTPException(403, "You have reached the maximum number of attempts")
-
+        raise HTTPException(403, "Maximum quiz attempts reached")
     settings = await load_exam_settings(quiz)
     count = exam_count(quiz, settings)
     if count < 1 or count > len(quiz.questions):
-        raise HTTPException(409, "Question bank is smaller than the exam size")
-
-    # Deterministic key means concurrent GET requests converge on one session.
+        raise HTTPException(409, "Invalid exam size")
     session_id = f"{quiz.id}:{user.id}:{attempts_used + 1}"
     session = await db.quiz_exam_sessions.find_one({"_id": session_id})
     if session is None:
-        previous_ids = set()
+        previous = await db.quiz_attempts.find({"quiz_id": quiz.id, "user_id": user.id}).to_list(length=None)
+        excluded = set()
         if settings.exclude_previous_questions:
-            previous = await db.quiz_exam_sessions.find({
-                "quiz_id": quiz.id, "user_id": user.id,
-                "state": "submitted",
-            }).to_list(length=None)
             for old in previous:
-                previous_ids.update(old.get("question_ids", []))
-            # Also respect prior attempts recorded with selected question IDs.
-            legacy = await db.quiz_attempts.find({
-                "quiz_id": quiz.id, "user_id": user.id,
-            }).to_list(length=None)
-            for old in legacy:
-                previous_ids.update(old.get("question_ids", []))
-
-        pool = [q for q in quiz.questions if q.id not in previous_ids]
-        if len(pool) < count:
-            raise HTTPException(
-                409, "Not enough unseen questions for another attempt. "
-                     "Add more questions or change the exam settings."
-            )
-        sampled = (
-            secrets.SystemRandom().sample(pool, count)
-            if settings.randomize_questions else pool[:count]
-        )
+                excluded.update(old.get("question_ids", []))
+        topic_doc = await db.quiz_question_topics.find_one({"_id": quiz.id}) or {}
+        sampled = choose_questions(quiz, settings, excluded, topic_doc.get("topics", {}))
         option_orders = {}
         if settings.shuffle_options:
             for q in sampled:
                 if q.question_type in ("mcq", "truefalse"):
-                    option_orders[q.id] = secrets.SystemRandom().sample(
-                        list(q.options), len(q.options)
-                    )
+                    option_orders[q.id] = secrets.SystemRandom().sample(list(q.options), len(q.options))
+        created = now_utc()
         proposed = {
             "_id": session_id, "quiz_id": quiz.id, "user_id": user.id,
-            "attempt_number": attempts_used + 1,
-            "state": "active", "question_ids": [q.id for q in sampled],
-            "option_orders": option_orders, "created_at": now_utc(),
+            "attempt_number": attempts_used + 1, "state": "active",
+            "question_ids": [q.id for q in sampled], "option_orders": option_orders,
+            "saved_answers": {}, "created_at": created,
+            "duration_minutes": settings.duration_minutes,
+            "deadline_at": created + timedelta(minutes=settings.duration_minutes),
         }
-        # Atomic upsert; identical _id guarantees one authoritative selection.
         try:
             await db.quiz_exam_sessions.update_one(
                 {"_id": session_id}, {"$setOnInsert": proposed}, upsert=True
             )
         except DuplicateKeyError:
-            # Another simultaneous request inserted the authoritative session.
             pass
         session = await db.quiz_exam_sessions.find_one({"_id": session_id})
-
     if session["state"] != "active":
-        raise HTTPException(409, "This attempt is already being submitted")
+        raise HTTPException(409, "This exam has already been submitted")
+    if now_utc() >= utc_date(session["deadline_at"]):
+        await finalize_session(quiz, user, session, timed_out=True)
+        raise HTTPException(410, "Exam time expired; saved answers have been graded")
     selected_map = {q.id: q for q in quiz.questions}
     if any(qid not in selected_map for qid in session["question_ids"]):
-        raise HTTPException(409, "Exam bank changed after attempt started")
-
+        raise HTTPException(409, "Question bank changed after attempt began")
     response = quiz_public_response(quiz, include_questions=False)
     response["questions"] = [
-        {
-            "id": selected_map[qid].id,
-            "question": selected_map[qid].question,
-            "question_type": selected_map[qid].question_type,
-            "options": session.get("option_orders", {}).get(
-                qid, selected_map[qid].options
-            ),
-        }
+        {"id": selected_map[qid].id,
+         "question": selected_map[qid].question,
+         "question_type": selected_map[qid].question_type,
+         "options": session.get("option_orders", {}).get(qid, selected_map[qid].options)}
         for qid in session["question_ids"]
     ]
     response["attempts_used"] = attempts_used
     response["attempts_remaining"] = max(quiz.max_attempts - attempts_used, 0)
-    response["session_id"] = session_id
+    response.update(public_session_status(session))
     return response
 
 
@@ -496,7 +610,14 @@ async def get_exam_settings(quiz_id: str, admin: User = Depends(require_admin)):
     if not doc:
         raise HTTPException(404, "Quiz not found")
     quiz = Quiz.from_mongo(doc)
-    return (await load_exam_settings(quiz)).model_dump()
+    settings = (await load_exam_settings(quiz)).model_dump()
+    topic_doc = await db.quiz_question_topics.find_one({"_id": quiz_id}) or {}
+    topics = topic_doc.get("topics", {})
+    settings["subject_available"] = {
+        subject: sum(1 for q in quiz.questions if topics.get(q.id) == subject)
+        for subject in SUBJECTS
+    }
+    return settings
 
 
 @router.put("/admin/{quiz_id}/exam-settings")
@@ -516,6 +637,18 @@ async def save_exam_settings(
             400, f"For {quiz.max_attempts} non-overlapping attempts of {count} "
                  f"questions, import at least {count * quiz.max_attempts} questions."
         )
+    if payload.subject_counts:
+        if any(k not in SUBJECTS or not isinstance(v, int) or v < 0 for k, v in payload.subject_counts.items()):
+            raise HTTPException(400, "Invalid subject allocation")
+        if sum(payload.subject_counts.values()) != count:
+            raise HTTPException(400, "Subject counts must sum to questions per attempt")
+        topics_doc = await db.quiz_question_topics.find_one({"_id": quiz_id}) or {}
+        topics = topics_doc.get("topics", {})
+        for subject, needed in payload.subject_counts.items():
+            available = sum(1 for q in quiz.questions if topics.get(q.id) == subject)
+            required = needed * (quiz.max_attempts if payload.exclude_previous_questions else 1)
+            if available < required:
+                raise HTTPException(400, f"{subject}: need {required} bank questions, have {available}")
     # Prevent a new configuration from changing already assigned exams.
     if await db.quiz_exam_sessions.count_documents({"quiz_id": quiz_id}, limit=1):
         raise HTTPException(409, "Exam sessions already exist. Create a new quiz to change these settings.")
@@ -651,153 +784,70 @@ async def get_quiz(
 # ============================================================
 # STUDENT: SUBMIT QUIZ
 # ============================================================
+@router.put("/{quiz_id}/answers")
+async def save_exam_answer(
+    quiz_id: str, payload: AnswerSave, user: User = Depends(get_current_user),
+):
+    quiz_doc = await db.quizzes.find_one({"_id": quiz_id, "is_published": True})
+    if not quiz_doc:
+        raise HTTPException(404, "Quiz not found")
+    quiz = Quiz.from_mongo(quiz_doc)
+    await check_quiz_access(quiz, user)
+    session = await db.quiz_exam_sessions.find_one({"_id": payload.session_id, "quiz_id": quiz_id, "user_id": user.id})
+    if not session or session["state"] != "active":
+        raise HTTPException(409, "No active exam session")
+    if now_utc() >= utc_date(session["deadline_at"]):
+        await finalize_session(quiz, user, session, timed_out=True)
+        raise HTTPException(410, "Exam time expired; saved answers were graded")
+    if payload.question_id not in session["question_ids"]:
+        raise HTTPException(400, "Question is not assigned to this attempt")
+    if len(payload.answer) > 10000:
+        raise HTTPException(400, "Answer is too long")
+    # Validate exact text for MCQs, and disallow MongoDB unsafe field keys.
+    if not payload.question_id.replace("_", "").replace("-", "").isalnum():
+        raise HTTPException(400, "Unsafe question ID; use alphanumeric IDs, hyphens or underscores")
+    q = next((q for q in quiz.questions if q.id == payload.question_id), None)
+    if not q:
+        raise HTTPException(409, "Question bank changed")
+    if q.question_type in ("mcq", "truefalse") and payload.answer not in q.options and payload.answer != "":
+        raise HTTPException(400, "Answer must be one of the available options")
+    result = await db.quiz_exam_sessions.update_one(
+        {"_id": payload.session_id, "state": "active", "deadline_at": {"$gt": now_utc()}},
+        {"$set": {f"saved_answers.{payload.question_id}": payload.answer, "last_saved_at": now_utc()}},
+    )
+    if not result.matched_count:
+        raise HTTPException(409, "Exam ended before answer could be saved")
+    return {"saved": True, "question_id": payload.question_id, "server_time": now_utc().isoformat()}
+
+
 @router.post("/{quiz_id}/submit")
 async def submit_quiz(
-    quiz_id: str,
-    payload: QuizSubmitRequest,
+    quiz_id: str, payload: QuizSubmitRequest,
     user: User = Depends(get_current_user),
 ):
-    """Submit a quiz and calculate the student's score."""
-    quiz_doc = await db.quizzes.find_one(
-        {
-            "_id": quiz_id,
-            "is_published": True,
-        }
-    )
+    quiz_doc = await db.quizzes.find_one({"_id": quiz_id, "is_published": True})
     if not quiz_doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Quiz not found",
-        )
+        raise HTTPException(404, "Quiz not found")
     quiz = Quiz.from_mongo(quiz_doc)
-    # Check access
-    await check_quiz_access(
-        quiz,
-        user,
-    )
-    # A GET of the exam creates the persistent assigned question set.
-    # If the student posts without GET, reject instead of silently sampling.
-    attempts_count = await db.quiz_attempts.count_documents({
-        "quiz_id": quiz.id, "user_id": user.id,
-    })
-    if attempts_count >= quiz.max_attempts:
-        raise HTTPException(403, "Maximum quiz attempts reached")
-    session_id = f"{quiz.id}:{user.id}:{attempts_count + 1}"
-    session = await db.quiz_exam_sessions.find_one({"_id": session_id})
-    if not session or session.get("state") != "active":
-        raise HTTPException(409, "Open the exam first; no active attempt found")
-
-    selected_ids = session["question_ids"]
-    question_map = {q.id: q for q in quiz.questions}
-    if any(qid not in question_map for qid in selected_ids):
-        raise HTTPException(409, "Exam question bank changed")
-    if any(qid not in selected_ids for qid in payload.answers):
-        raise HTTPException(400, "Answers contain questions not assigned to this attempt")
-    total_questions = len(selected_ids)
-    if not total_questions:
-        raise HTTPException(400, "Exam contains no assigned questions")
-
-    correct_count = sum(
-        is_answer_correct(question_map[qid], payload.answers.get(qid))
-        for qid in selected_ids
-    )
-    score = round(correct_count / total_questions * 100, 2)
-    passed = score >= quiz.passing_score
-
-    # Acquire submission lock atomically; blocks simultaneous double submission.
-    locked = await db.quiz_exam_sessions.find_one_and_update(
-        {"_id": session_id, "state": "active"},
-        {"$set": {"state": "submitting", "submitted_at": now_utc()}},
-        return_document=ReturnDocument.AFTER,
-    )
-    if not locked:
-        raise HTTPException(409, "This examination has already been submitted")
-
-    attempt = QuizAttempt(
-        id=str(uuid4()), quiz_id=quiz.id,
-        course_id=quiz.course_id, lesson_id=quiz.lesson_id,
-        user_id=user.id, answers=payload.answers, score=score, passed=passed,
-    )
-    attempt_doc = attempt.to_mongo()
-    attempt_doc["question_ids"] = selected_ids
-    attempt_doc["session_id"] = session_id
-    try:
-        await db.quiz_attempts.insert_one(attempt_doc)
-    except Exception:
-        await db.quiz_exam_sessions.update_one(
-            {"_id": session_id, "state": "submitting"},
-            {"$set": {"state": "active"}, "$unset": {"submitted_at": ""}},
+    await check_quiz_access(quiz, user)
+    attempts = await db.quiz_attempts.count_documents({"quiz_id": quiz.id, "user_id": user.id})
+    sid = f"{quiz.id}:{user.id}:{attempts + 1}"
+    session = await db.quiz_exam_sessions.find_one({"_id": sid})
+    if not session:
+        # An already completed submission may be retried by the browser.
+        latest = await db.quiz_exam_sessions.find_one(
+            {"quiz_id": quiz.id, "user_id": user.id, "state": "submitted"},
+            sort=[("attempt_number", -1)],
         )
-        raise
-    await db.quiz_exam_sessions.update_one(
-        {"_id": session_id}, {"$set": {"state": "submitted"}}
+        if latest:
+            existing = await db.quiz_attempts.find_one({"session_id": latest["_id"]})
+            if existing:
+                return attempt_result(existing, quiz, already_submitted=True)
+        raise HTTPException(409, "Start the examination first")
+    return await finalize_session(
+        quiz, user, session, submitted_answers=payload.answers,
+        timed_out=now_utc() >= utc_date(session["deadline_at"]),
     )
-    # --------------------------------------------------------
-    # If a lesson quiz is passed, record quiz completion.
-    # --------------------------------------------------------
-    if passed and quiz.quiz_type == "lesson":
-        await db.enrollments.update_one(
-            {
-                "user_id": user.id,
-                "course_id": quiz.course_id,
-            },
-            {
-                "$addToSet": {
-                    "completed_quizzes": quiz.id
-                }
-            },
-        )
-    # --------------------------------------------------------
-    # If final test is passed, mark course as completed.
-    # --------------------------------------------------------
-    if passed and quiz.quiz_type == "final":
-        await db.enrollments.update_one(
-            {
-                "user_id": user.id,
-                "course_id": quiz.course_id,
-            },
-            {
-                "$set": {
-                    "course_completed": True,
-                    "course_completed_at": now_utc(),
-                    "final_quiz_id": quiz.id,
-                    "final_quiz_score": score,
-                }
-            },
-        )
-    # Activate alumni after successful final assessment
-    if passed and quiz.quiz_type == "final":
-        try:
-            await activate_alumni(
-                user_id=user.id,
-                course_id=quiz.course_id
-            )
-        except Exception:
-            logger.exception(
-                "Alumni activation failed for user %s, course %s",
-                user.id,
-                quiz.course_id
-            ) 
-            
-    return {
-        "attempt_id": attempt.id,
-        "quiz_id": quiz.id,
-        "score": score,
-        "passed": passed,
-        "passing_score": quiz.passing_score,
-        "correct_answers": correct_count,
-        "total_questions": total_questions,
-        "attempts_used": attempts_count + 1,
-        "attempts_remaining": max(
-            quiz.max_attempts - (attempts_count + 1),
-            0,
-        ),
-        "message": (
-            "Congratulations! You passed the quiz."
-            if passed
-            else "You did not pass the quiz. You can try again."
-        ),
-    }
 
 
 # ============================================================
@@ -831,6 +881,7 @@ async def get_my_attempts(
             "id": attempt["_id"],
             "score": attempt["score"],
             "passed": attempt["passed"],
+            "timed_out": attempt.get("timed_out", False),
             "submitted_at": attempt["submitted_at"],
         }
         for attempt in attempts
@@ -863,6 +914,7 @@ async def get_all_attempts(
             "lesson_id": attempt.get("lesson_id"),
             "score": attempt["score"],
             "passed": attempt["passed"],
+            "timed_out": attempt.get("timed_out", False),
             "submitted_at": attempt["submitted_at"],
         }
         for attempt in attempts
@@ -871,6 +923,37 @@ async def get_all_attempts(
 # ============================================================
 # ADMIN: IMPORT JSON QUESTIONS (for your existing import button)
 # ============================================================
+@router.post("/admin/{quiz_id}/tag-data-analytics-200")
+async def tag_existing_data_analytics_200(
+    quiz_id: str, admin: User = Depends(require_admin),
+):
+    """One-time category backfill for the previously provided DA001-DA200 bank."""
+    doc = await db.quizzes.find_one({"_id": quiz_id})
+    if not doc:
+        raise HTTPException(404, "Quiz not found")
+    if (await db.quiz_exam_sessions.count_documents({"quiz_id": quiz_id}, limit=1)
+            or await db.quiz_attempts.count_documents({"quiz_id": quiz_id}, limit=1)):
+        raise HTTPException(409, "Cannot tag questions after attempts start")
+    ids = {q["id"] for q in doc.get("questions", [])}
+    expected = {f"DA{i:03}" for i in range(1, 201)}
+    if not expected.issubset(ids):
+        raise HTTPException(400, "Expected all DA001 through DA200 IDs in this quiz")
+    def subject_for(n):
+        if n <= 40: return "Excel"
+        if n <= 75: return "Power BI"
+        if n <= 105: return "Tableau"
+        if n <= 145: return "SQL"
+        if n <= 175: return "Python"
+        return "SPSS"
+    topics = {f"DA{i:03}": subject_for(i) for i in range(1,201)}
+    await db.quiz_question_topics.update_one(
+        {"_id": quiz_id}, {"$set": {"topics": topics}}, upsert=True
+    )
+    return {"tagged": 200, "subject_available": {
+        sub: sum(v == sub for v in topics.values()) for sub in SUBJECTS
+    }}
+
+
 @router.post("/{quiz_id}/import-questions")
 async def import_questions(
     quiz_id: str, questions: list[dict], admin: User = Depends(require_admin)
@@ -904,8 +987,17 @@ async def import_questions(
             question_id, q.get("question_type", "mcq"),
             q.get("options", []), q.get("correct_answer", ""),
         )
+    topics_to_add = {}
+    clean_questions = []
+    for q in questions:
+        subject = q.get("subject")
+        if subject is not None:
+            if subject not in SUBJECTS:
+                raise HTTPException(400, f"Unsupported subject: {subject}")
+            topics_to_add[q["id"]] = subject
+        clean_questions.append({k: v for k, v in q.items() if k != "subject"})
     try:
-        validated = QuizUpdate.model_validate({"questions": previous + questions})
+        validated = QuizUpdate.model_validate({"questions": previous + clean_questions})
         parsed = [q.model_dump() for q in validated.questions]
     except ValidationError as exc:
         raise HTTPException(422, "Imported questions do not match the Quiz model: " + str(exc)[:600])
@@ -915,5 +1007,9 @@ async def import_questions(
     )
     if not result.matched_count:
         raise HTTPException(409, "Quiz was changed during import; retry")
+    if topics_to_add:
+        await db.quiz_question_topics.update_one(
+            {"_id": quiz_id}, {"$set": {f"topics.{qid}": subject for qid, subject in topics_to_add.items()}}, upsert=True
+        )
     return {"message": "Questions imported successfully", "imported": len(questions),
             "total_questions": len(parsed), "quiz_id": quiz_id}

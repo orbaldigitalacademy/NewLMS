@@ -61,7 +61,10 @@ class AlumniUpdate(BaseModel):
     github_url: str = Field(default="", max_length=300)
     portfolio_url: str = Field(default="", max_length=300)
     is_public: bool = True
-
+    name_title: str = Field(default="", max_length=20)
+    city: str = Field(default="", max_length=100)
+    country: str = Field(default="", max_length=100)
+    phone_number: str = Field(default="", max_length=30)
     @field_validator("linkedin_url", "github_url", "portfolio_url")
     @classmethod
     def valid_url(cls, value):
@@ -81,6 +84,10 @@ def public_fields(p):
         "github_url": p.get("github_url", ""),
         "portfolio_url": p.get("portfolio_url", ""),
         "profile_image_url": p.get("profile_image_url", ""),
+        "name_title": p.get("name_title", ""),
+        "city": p.get("city", ""),
+        "country": p.get("country", ""),
+        "phone_number": p.get("phone_number", ""),
     }
 
 def private_fields(p):

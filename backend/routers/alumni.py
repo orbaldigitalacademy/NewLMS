@@ -53,7 +53,7 @@ class AlumniUpdate(BaseModel):
     linkedin_url: str = Field(default="", max_length=300)
     github_url: str = Field(default="", max_length=300)
     portfolio_url: str = Field(default="", max_length=300)
-    is_public: bool = False
+    is_public: bool = True
 
     @field_validator("linkedin_url", "github_url", "portfolio_url")
     @classmethod

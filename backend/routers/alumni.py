@@ -80,7 +80,7 @@ def private_fields(p):
 
     result.update({
         "is_verified": bool(p.get("is_verified")),
-        "is_public": bool(p.get("is_public")),
+        "is_public": bool(p.get("is_public", True)),
         "hidden_by_admin": bool(p.get("hidden_by_admin", False)),
         "completed_course_ids": p.get("completed_course_ids", []),
     })

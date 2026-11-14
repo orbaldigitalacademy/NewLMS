@@ -49,6 +49,7 @@ async def require_alumni(user=Depends(get_current_user)):
 class AlumniUpdate(BaseModel):
     professional_title: str = Field(default="", max_length=150)
     bio: str = Field(default="", max_length=1200)
+    profile_image_url: str = Field(default="", max_length=1000)
     skills: list[str] = Field(default_factory=list, max_length=30)
     linkedin_url: str = Field(default="", max_length=300)
     github_url: str = Field(default="", max_length=300)
@@ -73,6 +74,7 @@ def public_fields(p):
         "linkedin_url": p.get("linkedin_url", ""),
         "github_url": p.get("github_url", ""),
         "portfolio_url": p.get("portfolio_url", ""),
+        "profile_image_url": p.get("profile_image_url", ""),
     }
 
 def private_fields(p):

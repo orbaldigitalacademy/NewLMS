@@ -3,6 +3,13 @@
 Adjust the get_current_user import to match your existing project.
 Admin checks below assume the user document has role='admin' or is_admin=True.
 """
+import asyncio
+import io
+
+import cloudinary.uploader
+
+from PIL import Image, UnidentifiedImageError
+from fastapi import UploadFile, File
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -49,7 +56,6 @@ async def require_alumni(user=Depends(get_current_user)):
 class AlumniUpdate(BaseModel):
     professional_title: str = Field(default="", max_length=150)
     bio: str = Field(default="", max_length=1200)
-    profile_image_url: str = Field(default="", max_length=1000)
     skills: list[str] = Field(default_factory=list, max_length=30)
     linkedin_url: str = Field(default="", max_length=300)
     github_url: str = Field(default="", max_length=300)
@@ -163,3 +169,117 @@ async def resend_alumni_welcome(user_id: str, _admin=Depends(require_admin)):
     }
     await db.alumni_email_jobs.insert_one(job)
     return {"queued": True, "status": "pending"}
+
+
+# ============================================
+# ALUMNI PROFILE PICTURE UPLOAD
+# ============================================
+
+MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024
+
+ALLOWED_IMAGE_TYPES = {
+    "image/jpeg": "JPEG",
+    "image/png": "PNG",
+    "image/webp": "WEBP",
+}
+
+
+@router.post("/me/profile-picture")
+async def upload_alumni_profile_picture(
+    file: UploadFile = File(...),
+    profile=Depends(require_alumni),
+):
+    # 1. Validate declared file type
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Only JPG, PNG and WebP images are allowed",
+        )
+
+    # 2. Read file with size limit
+    contents = await file.read(MAX_PROFILE_IMAGE_SIZE + 1)
+
+    if len(contents) > MAX_PROFILE_IMAGE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail="Profile picture must not exceed 5MB",
+        )
+
+    if not contents:
+        raise HTTPException(
+            status_code=400,
+            detail="The uploaded file is empty",
+        )
+
+    # 3. Validate actual image contents
+    try:
+        with Image.open(io.BytesIO(contents)) as img:
+            if img.format != ALLOWED_IMAGE_TYPES[file.content_type]:
+                raise ValueError("File content does not match its type")
+
+            img.verify()
+
+    except (
+        UnidentifiedImageError,
+        ValueError,
+        OSError,
+        Image.DecompressionBombError,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image file",
+        )
+
+    # 4. Upload to Cloudinary
+    try:
+        result = await asyncio.to_thread(
+            cloudinary.uploader.upload,
+            contents,
+            folder="lms/alumni/profile-pictures",
+            resource_type="image",
+            overwrite=False,
+            unique_filename=True,
+            use_filename=False,
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to upload profile picture to Cloudinary",
+        )
+
+    image_url = result.get("secure_url")
+    public_id = result.get("public_id")
+
+    if not image_url or not public_id:
+        raise HTTPException(
+            status_code=502,
+            detail="Cloudinary returned incomplete image information",
+        )
+
+    # 5. Save image information in MongoDB
+    update_result = await db.alumni_profiles.update_one(
+        {
+            "user_id": profile["user_id"],
+            "is_verified": True,
+        },
+        {
+            "$set": {
+                "profile_image_url": image_url,
+                "profile_image_public_id": public_id,
+                "updated_at": utcnow(),
+            }
+        },
+    )
+
+    if update_result.matched_count == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Alumni profile not found",
+        )
+
+    return {
+        "message": "Profile picture uploaded successfully",
+        "profile_image_url": image_url,
+    }
+

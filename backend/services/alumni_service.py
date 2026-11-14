@@ -36,7 +36,7 @@ async def activate_alumni(user_id: str, course_id: str):
         {"user_id": user_id},
         {"$setOnInsert": {
             "user_id": user_id, "full_name": user.get("name") or user.get("full_name") or "",
-            "created_at": timestamp, "is_public": False,
+            "created_at": timestamp, "is_public": True,
             "bio": "", "professional_title": "", "skills": [],
             "linkedin_url": "", "github_url": "", "portfolio_url": ""
         }, "$set": {"is_verified": True, "updated_at": timestamp},
